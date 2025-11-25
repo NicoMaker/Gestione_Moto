@@ -411,9 +411,9 @@
           <thead>
             <tr>
               <th>Prodotto</th>
-              <th style="text-align: center;">Giacenza</th>
-              <th style="text-align: right;">Prezzo Medio €</th>
+              <th style="text-align: center;">Giacenza Totale</th>
               <th style="text-align: right;">Valore Totale €</th>
+              <th style="text-align: center;">Azioni</th>
             </tr>
           </thead>
           <tbody id="riepilogo-body">
@@ -422,6 +422,33 @@
         
         <div class="valore-magazzino">
           💰 Valore Totale Magazzino: € <span id="valore-magazzino-riepilogo">0.00</span>
+        </div>
+      </div>
+
+      <!-- SEZIONE DETTAGLIO LOTTI -->
+      <div id="dettaglio-section" class="section">
+        <h2>Dettaglio Lotti - <span id="dettaglio-prodotto-nome"></span></h2>
+        
+        <button class="btn btn-primary" onclick="tornaARiepilogo()" style="margin-bottom: 20px;">
+          ← Torna al Riepilogo
+        </button>
+        
+        <table id="dettaglio-table">
+          <thead>
+            <tr>
+              <th>Data Carico</th>
+              <th style="text-align: right;">Quantità Iniziale</th>
+              <th style="text-align: right;">Quantità Rimanente</th>
+              <th style="text-align: right;">Prezzo Unitario €</th>
+              <th style="text-align: right;">Valore Lotto €</th>
+            </tr>
+          </thead>
+          <tbody id="dettaglio-body">
+          </tbody>
+        </table>
+        
+        <div class="totale">
+          Totale Lotti: <span id="totale-lotti">0</span>
         </div>
       </div>
     </div>
@@ -448,6 +475,7 @@
     let prodotti = [];
     let dati = [];
     let prodottoInModifica = null;
+    let prodottoDettaglio = null;
     
     // Inizializzazione
     document.addEventListener('DOMContentLoaded', () => {
@@ -735,29 +763,8 @@
     }
     
     async function eliminaDato(id) {
-      if (!confirm('Sei sicuro di voler eliminare questo movimento?')) {
-        return;
-      }
-      
-      try {
-        const res = await fetch(`/api/dati/${id}`, {
-          method: 'DELETE'
-        });
-        
-        const data = await res.json();
-        
-        if (!res.ok) {
-          mostraAlert('error', data.error, 'dati');
-          return;
-        }
-        
-        mostraAlert('success', 'Movimento eliminato con successo', 'dati');
-        caricaDati();
-        caricaProdotti();
-        caricaValoreMagazzino();
-      } catch (err) {
-        mostraAlert('error', 'Errore durante l\'eliminazione', 'dati');
-      }
+      alert('Non è possibile eliminare movimenti dopo la registrazione.\nQuesto comprometterebbe il calcolo dei lotti e delle giacenze.');
+      return;
     }
 
     // ===== RIEPILOGO =====
@@ -781,8 +788,7 @@
         let totaleGenerale = 0;
         
         tbody.innerHTML = riepilogo.map(r => {
-          const valoreRiga = r.giacenza * r.prezzo_medio;
-          totaleGenerale += valoreRiga;
+          totaleGenerale += r.valore_totale;
           
           return `
             <tr>
@@ -791,10 +797,12 @@
                 ${r.giacenza}
               </td>
               <td style="text-align: right;">
-                ${r.prezzo_medio ? '€ ' + r.prezzo_medio.toFixed(2) : '-'}
+                <strong>€ ${r.valore_totale.toFixed(2)}</strong>
               </td>
-              <td style="text-align: right;">
-                <strong>${r.giacenza > 0 && r.prezzo_medio ? '€ ' + valoreRiga.toFixed(2) : '€ 0.00'}</strong>
+              <td style="text-align: center;">
+                <button class="btn btn-primary btn-small" onclick="mostraDettaglioLotti(${r.id}, '${r.nome.replace(/'/g, "\\'")}')">
+                  📦 Vedi Lotti
+                </button>
               </td>
             </tr>
           `;
@@ -802,6 +810,54 @@
         
         document.getElementById('valore-magazzino-riepilogo').textContent = totaleGenerale.toFixed(2);
       }
+    }
+
+    async function mostraDettaglioLotti(prodottoId, nomeProdotto) {
+      prodottoDettaglio = prodottoId;
+      document.getElementById('dettaglio-prodotto-nome').textContent = nomeProdotto;
+      
+      try {
+        const res = await fetch(`/api/lotti/${prodottoId}`);
+        const lotti = await res.json();
+        renderDettaglioLotti(lotti);
+        
+        // Mostra sezione dettaglio
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.getElementById('dettaglio-section').classList.add('active');
+      } catch (err) {
+        console.error('Errore caricamento lotti:', err);
+      }
+    }
+
+    function renderDettaglioLotti(lotti) {
+      const tbody = document.getElementById('dettaglio-body');
+      
+      if (lotti.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nessun lotto disponibile</td></tr>';
+      } else {
+        tbody.innerHTML = lotti.map(l => {
+          const dataFormatted = new Date(l.data_carico).toLocaleString('it-IT');
+          const valoreLotto = l.quantita_rimanente * l.prezzo;
+          
+          return `
+            <tr>
+              <td>${dataFormatted}</td>
+              <td style="text-align: right;">${l.quantita_iniziale}</td>
+              <td style="text-align: right;" class="giacenza positiva">${l.quantita_rimanente}</td>
+              <td style="text-align: right;">€ ${l.prezzo.toFixed(2)}</td>
+              <td style="text-align: right;"><strong>€ ${valoreLotto.toFixed(2)}</strong></td>
+            </tr>
+          `;
+        }).join('');
+      }
+      
+      document.getElementById('totale-lotti').textContent = lotti.length;
+    }
+
+    function tornaARiepilogo() {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById('riepilogo-section').classList.add('active');
+      caricaRiepilogo();
     }
   </script>
 </body>
