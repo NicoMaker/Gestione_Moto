@@ -313,6 +313,7 @@
     <div class="tabs">
       <button class="tab active" onclick="switchTab('prodotti')">Prodotti</button>
       <button class="tab" onclick="switchTab('dati')">Dati (Carico/Scarico)</button>
+      <button class="tab" onclick="switchTab('riepilogo')">Riepilogo Magazzino</button>
     </div>
     
     <div class="content">
@@ -401,6 +402,28 @@
           💰 Valore Totale Magazzino: € <span id="valore-magazzino">0.00</span>
         </div>
       </div>
+
+      <!-- SEZIONE RIEPILOGO -->
+      <div id="riepilogo-section" class="section">
+        <h2>Riepilogo Magazzino</h2>
+        
+        <table id="riepilogo-table">
+          <thead>
+            <tr>
+              <th>Prodotto</th>
+              <th style="text-align: center;">Giacenza</th>
+              <th style="text-align: right;">Prezzo Medio €</th>
+              <th style="text-align: right;">Valore Totale €</th>
+            </tr>
+          </thead>
+          <tbody id="riepilogo-body">
+          </tbody>
+        </table>
+        
+        <div class="valore-magazzino">
+          💰 Valore Totale Magazzino: € <span id="valore-magazzino-riepilogo">0.00</span>
+        </div>
+      </div>
     </div>
   </div>
   
@@ -430,6 +453,7 @@
     document.addEventListener('DOMContentLoaded', () => {
       caricaProdotti();
       caricaDati();
+      caricaRiepilogo();
       togglePrezzo();
     });
     
@@ -444,6 +468,10 @@
       if (tab === 'dati') {
         caricaSelectProdotti();
         caricaValoreMagazzino();
+      }
+      
+      if (tab === 'riepilogo') {
+        caricaRiepilogo();
       }
     }
     
@@ -729,6 +757,50 @@
         caricaValoreMagazzino();
       } catch (err) {
         mostraAlert('error', 'Errore durante l\'eliminazione', 'dati');
+      }
+    }
+
+    // ===== RIEPILOGO =====
+    async function caricaRiepilogo() {
+      try {
+        const res = await fetch('/api/riepilogo');
+        const riepilogo = await res.json();
+        renderRiepilogo(riepilogo);
+      } catch (err) {
+        console.error('Errore caricamento riepilogo:', err);
+      }
+    }
+
+    function renderRiepilogo(riepilogo) {
+      const tbody = document.getElementById('riepilogo-body');
+      
+      if (riepilogo.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nessun prodotto in magazzino</td></tr>';
+        document.getElementById('valore-magazzino-riepilogo').textContent = '0.00';
+      } else {
+        let totaleGenerale = 0;
+        
+        tbody.innerHTML = riepilogo.map(r => {
+          const valoreRiga = r.giacenza * r.prezzo_medio;
+          totaleGenerale += valoreRiga;
+          
+          return `
+            <tr>
+              <td><strong>${r.nome}</strong></td>
+              <td style="text-align: center;" class="giacenza ${r.giacenza > 0 ? 'positiva' : 'zero'}">
+                ${r.giacenza}
+              </td>
+              <td style="text-align: right;">
+                ${r.prezzo_medio ? '€ ' + r.prezzo_medio.toFixed(2) : '-'}
+              </td>
+              <td style="text-align: right;">
+                <strong>${r.giacenza > 0 && r.prezzo_medio ? '€ ' + valoreRiga.toFixed(2) : '€ 0.00'}</strong>
+              </td>
+            </tr>
+          `;
+        }).join('');
+        
+        document.getElementById('valore-magazzino-riepilogo').textContent = totaleGenerale.toFixed(2);
       }
     }
   </script>

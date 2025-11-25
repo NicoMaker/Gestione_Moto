@@ -169,6 +169,42 @@ app.get('/api/valore-magazzino', (req, res) => {
   });
 });
 
+// GET riepilogo magazzino
+app.get('/api/riepilogo', (req, res) => {
+  const query = `
+    WITH giacenze AS (
+      SELECT 
+        prodotto_id,
+        SUM(CASE WHEN tipo = 'carico' THEN quantita ELSE -quantita END) as giacenza
+      FROM dati
+      GROUP BY prodotto_id
+    ),
+    prezzi_medi AS (
+      SELECT 
+        prodotto_id,
+        AVG(prezzo) as prezzo_medio
+      FROM dati
+      WHERE tipo = 'carico' AND prezzo IS NOT NULL
+      GROUP BY prodotto_id
+    )
+    SELECT 
+      p.id,
+      p.nome,
+      COALESCE(g.giacenza, 0) as giacenza,
+      pm.prezzo_medio
+    FROM prodotti p
+    LEFT JOIN giacenze g ON p.id = g.prodotto_id
+    LEFT JOIN prezzi_medi pm ON p.id = pm.prodotto_id
+    WHERE COALESCE(g.giacenza, 0) > 0
+    ORDER BY p.nome
+  `;
+  
+  db.all(query, (err, rows) => {
+    if (err) return res.status(500).json({ error: err.message });
+    res.json(rows);
+  });
+});
+
 // POST nuovo dato (carico/scarico)
 app.post('/api/dati', (req, res) => {
   const { prodotto_id, tipo, quantita, prezzo } = req.body;
