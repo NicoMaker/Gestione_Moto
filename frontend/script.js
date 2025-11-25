@@ -472,14 +472,26 @@ async function aggiungiDato() {
       return;
     }
 
-    document.getElementById("dato-tipo").value = "";
+    // ⭐ PARTE DI RESET DOPO SUCCESSO (FIXED) ⭐
+    const tipoSelect = document.getElementById("dato-tipo");
+    
+    // 1. Resetta il valore a ""
+    tipoSelect.value = ""; 
+
+    // 2. Forza la selezione visiva dell'opzione di default (value="")
+    const defaultOption = tipoSelect.querySelector('option[value=""]');
+    if (defaultOption) {
+        defaultOption.selected = true;
+    }
+    
     document.getElementById("dato-prodotto").value = "";
     document.getElementById("dato-quantita").value = "";
     document.getElementById("dato-prezzo").value = "";
     document.getElementById("dato-fattura").value = "";
     document.getElementById("dato-fornitore").value = "";
     setInitialDate();
-    toggleCaricoFields(); // Nasconde i campi dopo il reset
+    toggleCaricoFields(); // Nasconde i campi extra
+    // ⭐ FINE RESET ⭐
 
     mostraAlert("success", "✅ Movimento registrato con successo", "dati");
     await refreshAllData();
