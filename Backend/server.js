@@ -45,7 +45,7 @@ db.serialize(() => {
   )`);
 });
 
-app.use(express.static(path.join(__dirname, 'frontend')));
+app.use(express.static(path.join(__dirname, '../frontend')));
 
 // ===== PRODOTTI =====
 app.get('/api/prodotti', (req, res) => {
