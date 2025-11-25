@@ -96,6 +96,7 @@ async function caricaProdotti() {
   try {
     const res = await fetch("/api/prodotti");
     prodotti = await res.json();
+    prodotti.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordina i prodotti per la tabella
     renderProdotti();
   } catch (err) {
     console.error("Errore caricamento prodotti:", err);
@@ -343,9 +344,15 @@ async function caricaValoreMagazzino() {
 
 function caricaSelectProdotti() {
   const select = document.getElementById("dato-prodotto");
+
+  // ORDINAMENTO ALFABETICO Aggiunto qui per il menu a tendina
+  const prodottiOrdinati = [...prodotti].sort((a, b) =>
+    a.nome.localeCompare(b.nome)
+  );
+
   select.innerHTML =
     '<option value="">Seleziona prodotto...</option>' +
-    prodotti
+    prodottiOrdinati // Usa l'array ordinato
       .map(
         (p) =>
           `<option value="${p.id}">${p.nome} (Giacenza: ${p.giacenza})</option>`
@@ -411,6 +418,7 @@ async function caricaRiepilogo() {
   try {
     const res = await fetch("/api/riepilogo");
     const riepilogo = await res.json();
+    riepilogo.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordina il riepilogo per la tabella
     renderRiepilogo(riepilogo);
   } catch (err) {
     console.error("Errore caricamento riepilogo:", err);
@@ -513,6 +521,4 @@ function renderDettaglioLotti(lotti) {
   document.getElementById("totale-lotti").textContent = lotti.length;
 }
 
-function tornaARiepilogo() {
-  switchTab("riepilogo");
-}
+const tornaARiepilogo = () => switchTab("riepilogo");
