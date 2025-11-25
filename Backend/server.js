@@ -21,12 +21,14 @@ db.serialize(() => {
     nome TEXT UNIQUE NOT NULL
   )`);
 
+  // AGGIUNTO: prezzo_totale_movimento per memorizzare il valore totale del carico/scarico (costo FIFO)
   db.run(`CREATE TABLE IF NOT EXISTS dati (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     prodotto_id INTEGER,
     tipo TEXT CHECK(tipo IN ('carico', 'scarico')),
     quantita INTEGER NOT NULL CHECK(quantita > 0),
-    prezzo REAL,
+    prezzo REAL, /* Prezzo unitario per il carico, NULL per lo scarico */
+    prezzo_totale_movimento REAL, /* Valore totale del carico (Qta*Prezzo) o scarico (costo FIFO) */
     data TEXT NOT NULL,
     FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
   )`);
@@ -122,7 +124,9 @@ app.delete('/api/prodotti/:id', (req, res) => {
   });
 });
 
-// ===== DATI =====
+// ===== DATI & MAGAZZINO =====
+
+// GET Tutti i movimenti
 app.get('/api/dati', (req, res) => {
   const query = `
     SELECT 
@@ -132,6 +136,9 @@ app.get('/api/dati', (req, res) => {
       d.tipo,
       d.quantita,
       d.prezzo,
+      d.prezzo_totale_movimento as prezzo_totale,
+      -- Calcolo del prezzo unitario di scarico (costo medio ponderato dello scarico)
+      CASE WHEN d.tipo = 'scarico' AND d.prezzo_totale_movimento IS NOT NULL AND d.quantita > 0 THEN d.prezzo_totale_movimento / d.quantita ELSE NULL END as prezzo_unitario_scarico,
       d.data
     FROM dati d
     JOIN prodotti p ON d.prodotto_id = p.id
@@ -143,7 +150,7 @@ app.get('/api/dati', (req, res) => {
   });
 });
 
-// GET valore totale magazzino
+// GET valore totale magazzino (FIFO)
 app.get('/api/valore-magazzino', (req, res) => {
   const query = `
     SELECT COALESCE(SUM(quantita_rimanente * prezzo), 0) as valore_totale
@@ -168,7 +175,7 @@ app.get('/api/riepilogo', (req, res) => {
     FROM prodotti p
     LEFT JOIN lotti l ON p.id = l.prodotto_id AND l.quantita_rimanente > 0
     GROUP BY p.id, p.nome
-    HAVING giacenza > 0
+    HAVING giacenza >= 0
     ORDER BY p.nome
   `;
   
@@ -184,7 +191,6 @@ app.get('/api/lotti/:prodotto_id', (req, res) => {
   const query = `
     SELECT 
       id,
-      quantita_iniziale,
       quantita_rimanente,
       prezzo,
       data_carico
@@ -214,17 +220,19 @@ app.post('/api/dati', (req, res) => {
   }
   
   if (tipo === 'carico') {
-    if (!prezzo || parseFloat(prezzo) <= 0) {
+    const prc = parseFloat(prezzo);
+    if (isNaN(prc) || prc <= 0) {
       return res.status(400).json({ error: 'Prezzo obbligatorio e maggiore di 0 per il carico' });
     }
     
-    const prc = parseFloat(prezzo);
+    // Calcolo richiesto: Prezzo Totale per parte (Carico)
+    const prezzoTotale = prc * qty; 
     const data = new Date().toISOString();
     
     // Inserisci in dati
     db.run(
-      'INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, data) VALUES (?, ?, ?, ?, ?)',
-      [prodotto_id, tipo, qty, prc, data],
+      'INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, data) VALUES (?, ?, ?, ?, ?, ?)',
+      [prodotto_id, tipo, qty, prc, prezzoTotale, data],
       function(err) {
         if (err) return res.status(500).json({ error: err.message });
         
@@ -242,7 +250,7 @@ app.post('/api/dati', (req, res) => {
   } else {
     // SCARICO - usa FIFO per scaricare dai lotti più vecchi
     db.all(
-      'SELECT id, quantita_rimanente FROM lotti WHERE prodotto_id = ? AND quantita_rimanente > 0 ORDER BY data_carico ASC',
+      'SELECT id, quantita_rimanente, prezzo FROM lotti WHERE prodotto_id = ? AND quantita_rimanente > 0 ORDER BY data_carico ASC',
       [prodotto_id],
       (err, lotti) => {
         if (err) return res.status(500).json({ error: err.message });
@@ -253,8 +261,9 @@ app.post('/api/dati', (req, res) => {
           return res.status(400).json({ error: `Giacenza insufficiente (disponibili: ${giacenzaTotale})` });
         }
         
-        // Scarica dai lotti
+        // Scarica dai lotti e calcola il costo totale FIFO
         let daScaricare = qty;
+        let costoTotaleScarico = 0; // Il Prezzo Totale per lo Scarico (Costo FIFO)
         const updates = [];
         
         for (const lotto of lotti) {
@@ -262,6 +271,9 @@ app.post('/api/dati', (req, res) => {
           
           const qtaDaQuestoLotto = Math.min(daScaricare, lotto.quantita_rimanente);
           const nuovaQta = lotto.quantita_rimanente - qtaDaQuestoLotto;
+          
+          // Costo FIFO
+          costoTotaleScarico += qtaDaQuestoLotto * lotto.prezzo; 
           
           updates.push({
             id: lotto.id,
@@ -275,9 +287,10 @@ app.post('/api/dati', (req, res) => {
         db.serialize(() => {
           const data = new Date().toISOString();
           
+          // Inserisci in dati con il costo FIFO calcolato come prezzo_totale_movimento
           db.run(
-            'INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, data) VALUES (?, ?, ?, ?, ?)',
-            [prodotto_id, tipo, qty, null, data],
+            'INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, data) VALUES (?, ?, ?, ?, ?, ?)',
+            [prodotto_id, tipo, qty, null, costoTotaleScarico, data],
             function(err) {
               if (err) return res.status(500).json({ error: err.message });
             }
@@ -287,21 +300,19 @@ app.post('/api/dati', (req, res) => {
             db.run('UPDATE lotti SET quantita_rimanente = ? WHERE id = ?', [u.nuova_quantita, u.id]);
           });
           
-          res.json({ success: true });
+          res.json({ success: true, costo_totale_scarico: costoTotaleScarico });
         });
       }
     );
   }
 });
 
-// DELETE dato
+// DELETE dato (bloccato)
 app.delete('/api/dati/:id', (req, res) => {
   const { id } = req.params;
   
-  // Non possiamo eliminare dati perché influenzerebbero i lotti
-  // Sarebbe necessario ricostruire tutto lo storico
   res.status(400).json({ 
-    error: 'Non è possibile eliminare movimenti dopo che sono stati registrati. Questo comprometterebbe il calcolo dei lotti.' 
+    error: 'Non è possibile eliminare movimenti dopo la registrazione. Questo comprometterebbe il calcolo dei lotti.' 
   });
 });
 
