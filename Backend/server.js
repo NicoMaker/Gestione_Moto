@@ -45,7 +45,7 @@ db.serialize(() => {
 
 app.use(express.static(path.join(__dirname, "../frontend")));
 
-// ===== PRODOTTI (immutato, solo DELETE è modificato) =====
+// ===== PRODOTTI (CRUD) =====
 app.get("/api/prodotti", (req, res) => {
   const query = `
     SELECT 
@@ -110,15 +110,12 @@ app.put("/api/prodotti/:id", (req, res) => {
   );
 });
 
-// LOGICA MODIFICATA: Controlla la giacenza PRIMA di eliminare a cascata
 app.delete("/api/prodotti/:id", (req, res) => {
   const { id } = req.params;
 
-  // Utilizza una transazione per assicurare che tutte le eliminazioni siano atomiche
   db.serialize(() => {
     db.run("BEGIN TRANSACTION;");
 
-    // 1. Controlla la giacenza (SUM(quantita_rimanente))
     const checkGiacenzaQuery = `
       SELECT COALESCE(SUM(quantita_rimanente), 0) as giacenza
       FROM lotti
@@ -135,7 +132,6 @@ app.delete("/api/prodotti/:id", (req, res) => {
           });
       }
 
-      // **BLOCCO se la giacenza è maggiore di zero**
       if (row.giacenza > 0) {
         db.run("ROLLBACK;");
         return res
@@ -145,9 +141,6 @@ app.delete("/api/prodotti/:id", (req, res) => {
           });
       }
 
-      // --- Giacenza = 0: procede con la cancellazione a cascata ---
-
-      // 2. Elimina i lotti associati (anche quelli a giacenza zero sono storici)
       db.run("DELETE FROM lotti WHERE prodotto_id = ?", [id], (err) => {
         if (err) {
           db.run("ROLLBACK;");
@@ -158,7 +151,6 @@ app.delete("/api/prodotti/:id", (req, res) => {
             });
         }
 
-        // 3. Elimina i dati (movimenti) associati
         db.run("DELETE FROM dati WHERE prodotto_id = ?", [id], (err) => {
           if (err) {
             db.run("ROLLBACK;");
@@ -169,7 +161,6 @@ app.delete("/api/prodotti/:id", (req, res) => {
               });
           }
 
-          // 4. Elimina il prodotto dalla tabella principale
           db.run("DELETE FROM prodotti WHERE id = ?", [id], function (err) {
             if (err) {
               db.run("ROLLBACK;");
@@ -185,7 +176,6 @@ app.delete("/api/prodotti/:id", (req, res) => {
               return res.status(404).json({ error: "Prodotto non trovato" });
             }
 
-            // Commit della transazione se tutto è andato bene
             db.run("COMMIT;", (commitErr) => {
               if (commitErr) {
                 return res
@@ -206,7 +196,7 @@ app.delete("/api/prodotti/:id", (req, res) => {
   });
 });
 
-// ===== DATI & MAGAZZINO (immutato) =====
+// ===== DATI & MAGAZZINO (CRUD) =====
 
 app.get("/api/dati", (req, res) => {
   const query = `
@@ -395,13 +385,201 @@ app.post("/api/dati", (req, res) => {
   }
 });
 
-// DELETE dato (bloccato)
+// DELETE dato (Logica modificata per consentire l'eliminazione di carichi intatti e scarichi con ripristino)
 app.delete("/api/dati/:id", (req, res) => {
   const { id } = req.params;
 
-  res.status(400).json({
-    error:
-      "Non è possibile eliminare movimenti dopo la registrazione. Questo comprometterebbe il calcolo dei lotti.",
+  db.serialize(() => {
+    db.run("BEGIN TRANSACTION;");
+
+    // 1. Recupera il movimento da eliminare
+    db.get(
+      "SELECT prodotto_id, tipo, quantita, data FROM dati WHERE id = ?",
+      [id],
+      (err, movimento) => {
+        if (err) {
+          db.run("ROLLBACK;");
+          return res.status(500).json({ error: err.message });
+        }
+        if (!movimento) {
+          db.run("ROLLBACK;");
+          return res.status(404).json({ error: "Movimento non trovato" });
+        }
+
+        const { prodotto_id, tipo, quantita, data } = movimento;
+
+        if (tipo === "carico") {
+          // --- Logica di Eliminazione CARICO ---
+          const lottoQuery = `
+            SELECT id, quantita_rimanente, quantita_iniziale
+            FROM lotti
+            WHERE prodotto_id = ? 
+            AND quantita_iniziale = ? 
+            AND data_carico = ?
+            ORDER BY id DESC 
+            LIMIT 1
+          `;
+
+          db.get(
+            lottoQuery,
+            [prodotto_id, quantita, data],
+            (err, lotto) => {
+              if (err) {
+                db.run("ROLLBACK;");
+                return res
+                  .status(500)
+                  .json({
+                    error: `Errore durante la ricerca del lotto: ${err.message}`,
+                  });
+              }
+
+              if (!lotto || lotto.quantita_rimanente !== lotto.quantita_iniziale) {
+                db.run("ROLLBACK;");
+                return res.status(400).json({
+                  error:
+                    "Impossibile eliminare: il lotto di questo carico è stato parzialmente o totalmente scaricato.",
+                });
+              }
+
+              // Elimina il lotto
+              db.run("DELETE FROM lotti WHERE id = ?", [lotto.id], (err) => {
+                if (err) {
+                  db.run("ROLLBACK;");
+                  return res
+                    .status(500)
+                    .json({
+                      error: `Errore durante l'eliminazione del lotto: ${err.message}`,
+                    });
+                }
+
+                // Elimina il movimento
+                db.run(
+                  "DELETE FROM dati WHERE id = ?",
+                  [id],
+                  function (err) {
+                    if (err) {
+                      db.run("ROLLBACK;");
+                      return res
+                        .status(500)
+                        .json({
+                          error: `Errore durante l'eliminazione del dato: ${err.message}`,
+                        });
+                    }
+
+                    db.run("COMMIT;");
+                    res.json({
+                      success: true,
+                      message: "Carico e lotto associato eliminati con successo.",
+                    });
+                  }
+                );
+              });
+            }
+          );
+        } else if (tipo === "scarico") {
+          // --- Logica di Eliminazione SCARICO (ANNULLAMENTO/RIPRISTINO) ---
+          
+          let qtaDaRipristinare = quantita;
+          
+          // Cerca i lotti in ordine inverso (dal più recente) per ripristinare la quantità
+          const lottiQuery = `
+            SELECT id, quantita_iniziale, quantita_rimanente 
+            FROM lotti 
+            WHERE prodotto_id = ? 
+            ORDER BY data_carico DESC
+          `;
+
+          db.all(lottiQuery, [prodotto_id], (err, lotti) => {
+            if (err) {
+              db.run("ROLLBACK;");
+              return res.status(500).json({ error: err.message });
+            }
+
+            const updates = [];
+            
+            for (const lotto of lotti) {
+              if (qtaDaRipristinare <= 0) break;
+
+              const qtaConsumata = lotto.quantita_iniziale - lotto.quantita_rimanente;
+              
+              // Calcola quanto si può ripristinare su questo lotto (fino a raggiungere la qta iniziale)
+              const qtaDaQuestoLotto = Math.min(
+                qtaDaRipristinare,
+                qtaConsumata
+              );
+
+              if (qtaDaQuestoLotto > 0) {
+                const nuovaQta = lotto.quantita_rimanente + qtaDaQuestoLotto;
+                
+                updates.push({
+                  id: lotto.id,
+                  nuova_quantita: nuovaQta,
+                });
+                
+                qtaDaRipristinare -= qtaDaQuestoLotto;
+              }
+            }
+            
+            if (qtaDaRipristinare > 0) {
+                db.run("ROLLBACK;");
+                return res.status(400).json({
+                    error: `Impossibile ripristinare la quantità (${quantita - qtaDaRipristinare} ripristinate su ${quantita} totali). Il lotto originale è stato consumato da movimenti successivi o eliminato.`,
+                });
+            }
+
+            let updatesCompleted = 0;
+            const totalUpdates = updates.length;
+            
+            const handleUpdateComplete = () => {
+                updatesCompleted++;
+                if (updatesCompleted === totalUpdates) {
+                    // Elimina il movimento dalla tabella dati
+                    db.run(
+                      "DELETE FROM dati WHERE id = ?",
+                      [id],
+                      function (err) {
+                        if (err) {
+                          db.run("ROLLBACK;");
+                          return res
+                            .status(500)
+                            .json({
+                              error: `Errore durante l'eliminazione del dato: ${err.message}`,
+                            });
+                        }
+
+                        db.run("COMMIT;");
+                        res.json({
+                          success: true,
+                          message: "Scarico annullato e lotti ripristinati con successo.",
+                        });
+                      }
+                    );
+                }
+            };
+
+            if (totalUpdates === 0) {
+                 handleUpdateComplete();
+            } else {
+                 updates.forEach((u) => {
+                    db.run(
+                        "UPDATE lotti SET quantita_rimanente = ? WHERE id = ?",
+                        [u.nuova_quantita, u.id],
+                        (err) => {
+                            if (err) {
+                                db.run("ROLLBACK;");
+                                return res.status(500).json({
+                                    error: `Errore durante il ripristino del lotto ${u.id}: ${err.message}`,
+                                });
+                            }
+                            handleUpdateComplete();
+                        }
+                    );
+                });
+            }
+          });
+        }
+      }
+    );
   });
 });
 

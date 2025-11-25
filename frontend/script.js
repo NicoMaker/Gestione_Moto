@@ -221,7 +221,6 @@ async function salvaNomeProdotto() {
 }
 
 async function eliminaProdotto(id) {
-  // Messaggio di conferma aggiornato
   if (
     !confirm(
       "ATTENZIONE: L'eliminazione è consentita SOLO se la giacenza è zero. Se procedi, verranno cancellati PERMANENTEMENTE tutti i movimenti e lotti associati. Sei sicuro di voler procedere?"
@@ -238,7 +237,6 @@ async function eliminaProdotto(id) {
     const data = await res.json();
 
     if (!res.ok) {
-      // Se fallisce, mostra l'errore specifico (es. giacenza > 0)
       mostraAlert(
         "error",
         data.error || "Errore durante l'eliminazione",
@@ -258,7 +256,7 @@ async function eliminaProdotto(id) {
   }
 }
 
-// ===== DATI (CARICO/SCARICO) =====
+// ===== DATI (CARICO/SCARICO) - MODIFICATO PER CONSENTIRE DELETE DI ENTRAMBI =====
 async function caricaDati() {
   try {
     const res = await fetch("/api/dati");
@@ -286,6 +284,7 @@ function renderDati() {
         let prezzoUnitarioDisplay = "-";
         let prezzoTotaleDisplay = "-";
         let prezzoTotaleClass = "";
+        let deleteButton = ""; 
 
         if (d.tipo === "carico") {
           if (d.prezzo !== null) {
@@ -295,6 +294,9 @@ function renderDati() {
             prezzoTotaleDisplay = `€ ${d.prezzo_totale.toFixed(2)}`;
             prezzoTotaleClass = "tipo-carico";
           }
+          // Pulsante di eliminazione per i CARICHI
+          deleteButton = `<button class="btn btn-danger btn-small" onclick="eliminaDato(${d.id}, 'carico')">🗑️ Elimina</button>`;
+
         } else if (d.tipo === "scarico") {
           if (d.prezzo_unitario_scarico !== null) {
             prezzoUnitarioDisplay = `Ø € ${d.prezzo_unitario_scarico.toFixed(
@@ -307,6 +309,8 @@ function renderDati() {
             prezzoTotaleDisplay = `€ ${costoScarico.toFixed(2)}`;
             prezzoTotaleClass = "tipo-scarico";
           }
+           // Pulsante di eliminazione per gli SCARICHI
+          deleteButton = `<button class="btn btn-danger btn-small" onclick="eliminaDato(${d.id}, 'scarico')">🗑️ Elimina</button>`;
         }
 
         return `
@@ -320,7 +324,7 @@ function renderDati() {
               <td style="text-align: right;">${prezzoUnitarioDisplay}</td>
               <td style="text-align: right;" class="${prezzoTotaleClass}"><strong>${prezzoTotaleDisplay}</strong></td>
               <td style="text-align: center;">
-                <span style="color: #c0392b; font-size: 10px;">(Bloccato)</span>
+                <div class="actions">${deleteButton}</div>
               </td>
             </tr>
           `;
@@ -345,14 +349,13 @@ async function caricaValoreMagazzino() {
 function caricaSelectProdotti() {
   const select = document.getElementById("dato-prodotto");
 
-  // ORDINAMENTO ALFABETICO Aggiunto qui per il menu a tendina
   const prodottiOrdinati = [...prodotti].sort((a, b) =>
     a.nome.localeCompare(b.nome)
   );
 
   select.innerHTML =
     '<option value="">Seleziona prodotto...</option>' +
-    prodottiOrdinati // Usa l'array ordinato
+    prodottiOrdinati
       .map(
         (p) =>
           `<option value="${p.id}">${p.nome} (Giacenza: ${p.giacenza})</option>`
@@ -406,11 +409,48 @@ async function aggiungiDato() {
   }
 }
 
-async function eliminaDato(id) {
-  alert(
-    "Non è possibile eliminare movimenti dopo la registrazione. Questo comprometterebbe il calcolo dei lotti e delle giacenze."
-  );
-  return;
+// Nuova funzione per l'eliminazione dei carichi e scarichi
+async function eliminaDato(id, tipo) {
+  let messaggioConferma;
+  
+  if (tipo === 'carico') {
+      messaggioConferma = "ATTENZIONE: Stai per eliminare un movimento di CARICO. L'eliminazione è consentita SOLO se il lotto non è stato utilizzato. Sei sicuro?";
+  } else if (tipo === 'scarico') {
+      messaggioConferma = "ATTENZIONE: Stai per eliminare un movimento di SCARICO. Questa operazione annullerà lo scarico ripristinando la quantità ai lotti da cui è stata prelevata (dal più recente). L'uso di questa funzione richiede CAUTELA. Sei sicuro?";
+  } else {
+      messaggioConferma = "Sei sicuro di voler eliminare questo movimento?";
+  }
+
+
+  if (!confirm(messaggioConferma)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/dati/${id}`, {
+      method: "DELETE",
+    });
+
+    const data = await res.json();
+
+    if (!res.ok) {
+      mostraAlert(
+        "error",
+        data.error || "Errore durante l'eliminazione del movimento",
+        "dati"
+      );
+      return;
+    }
+
+    mostraAlert(
+      "success",
+      data.message || "Movimento eliminato con successo",
+      "dati"
+    );
+    refreshAllData();
+  } catch (err) {
+    mostraAlert("error", "Errore di rete durante l'eliminazione", "dati");
+  }
 }
 
 // ===== RIEPILOGO =====
@@ -418,7 +458,7 @@ async function caricaRiepilogo() {
   try {
     const res = await fetch("/api/riepilogo");
     const riepilogo = await res.json();
-    riepilogo.sort((a, b) => a.nome.localeCompare(b.nome)); // Ordina il riepilogo per la tabella
+    riepilogo.sort((a, b) => a.nome.localeCompare(b.nome)); 
     renderRiepilogo(riepilogo);
   } catch (err) {
     console.error("Errore caricamento riepilogo:", err);
