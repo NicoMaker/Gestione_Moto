@@ -312,7 +312,7 @@
     
     <div class="tabs">
       <button class="tab active" onclick="switchTab('prodotti')">Prodotti</button>
-      <button class="tab" id="dati-tab" onclick="switchTab('dati')">Dati (Carico/Scarico)</button>
+      <button class="tab" onclick="switchTab('dati')">Dati (Carico/Scarico)</button>
       <button class="tab" onclick="switchTab('riepilogo')">Riepilogo Magazzino</button>
     </div>
     
@@ -339,6 +339,7 @@
             </tr>
           </thead>
           <tbody id="prodotti-body">
+          </form-group>
           </tbody>
         </table>
         
@@ -435,6 +436,7 @@
           <thead>
             <tr>
               <th>Data Carico</th>
+              <th style="text-align: right;">Quantità Iniziale</th>
               <th style="text-align: right;">Quantità Rimanente</th>
               <th style="text-align: right;">Prezzo Unitario €</th>
               <th style="text-align: right;">Valore Lotto €</th>
@@ -473,10 +475,10 @@
     let prodottoInModifica = null;
     let prodottoDettaglio = null;
     
-    // Inizializzazione: Carica tutti i dati necessari all'avvio
+    // Inizializzazione
     document.addEventListener('DOMContentLoaded', () => {
       caricaProdotti();
-      caricaDati(); // Carica i dati all'avvio per averli pronti
+      caricaDati();
       caricaRiepilogo();
       togglePrezzo();
     });
@@ -492,7 +494,6 @@
       if (tab === 'dati') {
         caricaSelectProdotti();
         caricaValoreMagazzino();
-        caricaDati(); // Ricarica i dati quando si clicca la tab
       }
       
       if (tab === 'riepilogo') {
@@ -519,7 +520,7 @@
     // Mostra alert
     function mostraAlert(tipo, messaggio, sezione) {
       const alertDiv = document.getElementById(`${sezione}-alert`);
-      alertDiv.innerHTML = `<div class="alert alert-${tipo}">${mesaggio}</div>`;
+      alertDiv.innerHTML = `<div class="alert alert-${tipo}">${messaggio}</div>`;
       setTimeout(() => alertDiv.innerHTML = '', 3000);
     }
     
@@ -667,8 +668,6 @@
         renderDati();
       } catch (err) {
         console.error('Errore caricamento dati:', err);
-        const tbody = document.getElementById('dati-body');
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state" style="color: #e74c3c;">Errore nel caricamento dei dati dal server.</td></tr>';
       }
     }
     
@@ -681,32 +680,19 @@
         tbody.innerHTML = dati.map(d => {
           const dataFormatted = new Date(d.data).toLocaleString('it-IT');
           
+          // Prezzo Unitario
           let prezzoUnitarioDisplay = '-';
-          let prezzoTotaleDisplay = '-';
-          let prezzoTotaleClass = ''; // Per colorare il prezzo totale
-          
-          if (d.tipo === 'carico') {
-              if (d.prezzo !== null) {
-                  prezzoUnitarioDisplay = `€ ${d.prezzo.toFixed(2)}`;
-              }
-              if (d.prezzo_totale !== null) {
-                  // Carico: Valore positivo (Quantità * Prezzo Unitario)
-                  prezzoTotaleDisplay = `€ ${d.prezzo_totale.toFixed(2)}`;
-                  prezzoTotaleClass = 'tipo-carico'; // Verde
-              }
-          } else if (d.tipo === 'scarico') {
-              if (d.prezzo_unitario_scarico !== null) {
-                  // Scarico: Prezzo unitario medio di costo (Costo FIFO / Quantità)
-                  prezzoUnitarioDisplay = `Ø € ${d.prezzo_unitario_scarico.toFixed(2)}`;
-              }
-              
-              if (d.prezzo_totale !== null) {
-                  // Scarico: Valore negativo (Costo FIFO) per mostrare la sottrazione di valore
-                  const costoScarico = -Math.abs(d.prezzo_totale); 
-                  prezzoTotaleDisplay = `€ ${costoScarico.toFixed(2)}`;
-                  prezzoTotaleClass = 'tipo-scarico'; // Rosso
-              }
+          if (d.tipo === 'carico' && d.prezzo !== null) {
+              prezzoUnitarioDisplay = `€ ${d.prezzo.toFixed(2)}`;
+          } else if (d.tipo === 'scarico' && d.prezzo_unitario_scarico !== null) {
+              // Per gli scarichi, d.prezzo_unitario_scarico è la media ponderata
+              prezzoUnitarioDisplay = `Ø € ${d.prezzo_unitario_scarico.toFixed(2)}`;
           }
+
+          // Prezzo Totale
+          const prezzoTotaleDisplay = d.prezzo_totale !== null 
+              ? `€ ${d.prezzo_totale.toFixed(2)}` 
+              : '-';
 
           return `
             <tr>
@@ -715,7 +701,7 @@
               <td><span class="tipo-${d.tipo}">${d.tipo.toUpperCase()}</span></td>
               <td style="text-align: right;">${d.quantita}</td>
               <td style="text-align: right;">${prezzoUnitarioDisplay}</td>
-              <td style="text-align: right;" class="${prezzoTotaleClass}"><strong>${prezzoTotaleDisplay}</strong></td>
+              <td style="text-align: right;"><strong>${prezzoTotaleDisplay}</strong></td>
               <td style="text-align: center;">
                 <button class="btn btn-danger btn-small" onclick="eliminaDato(${d.id})">
                   🗑️ Elimina
@@ -781,7 +767,7 @@
         
         mostraAlert('success', 'Dato aggiunto con successo', 'dati');
         caricaDati();
-        caricaProdotti(); 
+        caricaProdotti();
         caricaValoreMagazzino();
       } catch (err) {
         mostraAlert('error', 'Errore durante l\'aggiunta', 'dati');
@@ -789,7 +775,7 @@
     }
     
     async function eliminaDato(id) {
-      alert('Non è possibile eliminare movimenti dopo la registrazione. Questo comprometterebbe il calcolo dei lotti e delle giacenze.');
+      alert('Non è possibile eliminare movimenti dopo la registrazione.\nQuesto comprometterebbe il calcolo dei lotti e delle giacenze.');
       return;
     }
 
@@ -847,8 +833,8 @@
         const lotti = await res.json();
         renderDettaglioLotti(lotti);
         
+        // Mostra sezione dettaglio
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
         document.getElementById('dettaglio-section').classList.add('active');
       } catch (err) {
         console.error('Errore caricamento lotti:', err);
@@ -859,7 +845,7 @@
       const tbody = document.getElementById('dettaglio-body');
       
       if (lotti.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="4" class="empty-state">Nessun lotto disponibile</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="5" class="empty-state">Nessun lotto disponibile</td></tr>';
       } else {
         tbody.innerHTML = lotti.map(l => {
           const dataFormatted = new Date(l.data_carico).toLocaleString('it-IT');
@@ -868,6 +854,7 @@
           return `
             <tr>
               <td>${dataFormatted}</td>
+              <td style="text-align: right;">${l.quantita_iniziale}</td>
               <td style="text-align: right;" class="giacenza positiva">${l.quantita_rimanente}</td>
               <td style="text-align: right;">€ ${l.prezzo.toFixed(2)}</td>
               <td style="text-align: right;"><strong>€ ${valoreLotto.toFixed(2)}</strong></td>
@@ -880,8 +867,6 @@
     }
 
     function tornaARiepilogo() {
-      document.querySelector('[onclick="switchTab(\'riepilogo\')"]').classList.add('active');
-      
       document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
       document.getElementById('riepilogo-section').classList.add('active');
       caricaRiepilogo();
