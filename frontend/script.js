@@ -1,3 +1,8 @@
+// Verifica autenticazione all'avvio
+if (localStorage.getItem('isLoggedIn') !== 'true') {
+  window.location.href = '/login.html';
+}
+
 let prodotti = [];
 let dati = [];
 let prodottoInModifica = null;
@@ -42,6 +47,15 @@ function formatDate(dateString) {
 function setInitialDate() {
     const today = new Date().toISOString().split('T')[0];
     document.getElementById("dato-data").value = today;
+}
+
+// Funzione di logout
+function logout() {
+  if (confirm('Sei sicuro di voler uscire?')) {
+    localStorage.removeItem('isLoggedIn');
+    localStorage.removeItem('username');
+    window.location.href = '/login.html';
+  }
 }
 
 // Funzione centrale per aggiornare tutti i dati
@@ -99,6 +113,18 @@ document.addEventListener("DOMContentLoaded", () => {
   setInitialDate();
   toggleCaricoFields();
   checkUrlHashAndSwitch();
+  
+  // Mostra username nella header
+  const username = localStorage.getItem('username');
+  if (username) {
+    const userInfo = document.createElement('div');
+    userInfo.className = 'user-info';
+    userInfo.innerHTML = `
+      <span>👤 ${username}</span>
+      <button class="btn-logout" onclick="logout()">🚪 Esci</button>
+    `;
+    document.querySelector('header').appendChild(userInfo);
+  }
 });
 
 // Switch tra tabs e aggiorna l'URL hash
@@ -223,15 +249,13 @@ function renderProdotti() {
 
 async function aggiungiProdotto() {
   const input = document.getElementById("nuovo-prodotto");
-  const nomeRaw = input.value; // Valore grezzo
+  const nomeRaw = input.value;
 
-  // 🔥 VALIDAZIONE PRIMARIA: Rileva caratteri proibiti
   if (containsForbiddenChars(nomeRaw)) {
     mostraAlert("error", "⚠️ Caratteri non validi rilevati. Rimuovi simboli come ', \", ;, <, >.", "prodotti");
-    return; // Blocca l'esecuzione
+    return;
   }
 
-  // Sanificazione di sicurezza
   const nomeSanificato = sanitizeInputText(nomeRaw); 
 
   if (!nomeSanificato) {
@@ -239,7 +263,6 @@ async function aggiungiProdotto() {
     return;
   }
   
-  // Usa il nome sanificato per la chiamata API
   try {
     const res = await fetch("/api/prodotti", {
       method: "POST",
@@ -277,13 +300,11 @@ async function salvaNomeProdotto() {
   const nuovoNomeInput = document.getElementById("modifica-nome");
   const nuovoNomeRaw = nuovoNomeInput.value;
 
-  // 🔥 VALIDAZIONE PRIMARIA: Rileva caratteri proibiti
   if (containsForbiddenChars(nuovoNomeRaw)) {
     alert("⚠️ Caratteri non validi rilevati. Rimuovi simboli come ', \", ;, <, >.");
-    return; // Blocca l'esecuzione
+    return;
   }
 
-  // Sanificazione di sicurezza
   const nuovoNomeSanificato = sanitizeInputText(nuovoNomeRaw); 
   
   if (!nuovoNomeSanificato) {
@@ -291,7 +312,6 @@ async function salvaNomeProdotto() {
     return;
   }
 
-  // Usa il nome sanificato per la chiamata API
   try {
     const res = await fetch(`/api/prodotti/${prodottoInModifica}`, {
       method: "PUT",
@@ -468,13 +488,11 @@ async function aggiungiDato() {
   const fattura_doc_raw = document.getElementById("dato-fattura").value;
   const fornitore_cliente_id_raw = document.getElementById("dato-fornitore").value;
 
-  // Validazione tipo operazione
   if (!tipo) {
     mostraAlert("error", "⚠️ Seleziona il tipo di operazione (Carico/Scarico)", "dati");
     return;
   }
 
-  // Validazione campi base
   if (!prodotto_id) {
     mostraAlert("error", "⚠️ Seleziona un prodotto", "dati");
     return;
@@ -490,9 +508,7 @@ async function aggiungiDato() {
     return;
   }
   
-  // Validazione COMPLETA per CARICO - TUTTI I CAMPI OBBLIGATORI
   if (tipo === "carico") {
-    // Validazione prezzo
     const prezzoString = String(prezzo).trim();
     if (!prezzoString || prezzoString === "") {
       mostraAlert("error", "⚠️ Il prezzo è obbligatorio per il carico", "dati");
@@ -505,23 +521,19 @@ async function aggiungiDato() {
       return;
     }
     
-    // 🔥 VALIDAZIONE PRIMARIA: Fattura/Documento - BLOCCO COMANDI DB
     if (containsForbiddenChars(fattura_doc_raw)) {
       mostraAlert("error", "⚠️ La Fattura/Documento contiene caratteri non validi (rimuovi ', \", ;).", "dati");
-      return; // Blocca l'esecuzione
+      return;
     }
     
-    // 🔥 VALIDAZIONE PRIMARIA: Fornitore/Cliente - BLOCCO COMANDI DB
     if (containsForbiddenChars(fornitore_cliente_id_raw)) {
       mostraAlert("error", "⚠️ Il Fornitore/Cliente contiene caratteri non validi (rimuovi ', \", ;).", "dati");
-      return; // Blocca l'esecuzione
+      return;
     }
     
-    // Sanificazione di sicurezza
     const fattura_doc_sanitized = sanitizeInputText(fattura_doc_raw); 
     const fornitore_cliente_id_sanitized = sanitizeInputText(fornitore_cliente_id_raw); 
     
-    // Controllo finale sui campi obbligatori *dopo* la sanificazione/pulizia
     if (!fattura_doc_sanitized) {
       mostraAlert("error", "⚠️ La fattura/documento è obbligatoria per il carico.", "dati");
       return;
@@ -531,7 +543,6 @@ async function aggiungiDato() {
       return;
     }
 
-    // Invio dei dati sanificati
     try {
         const res = await fetch("/api/dati", {
             method: "POST",
@@ -553,7 +564,6 @@ async function aggiungiDato() {
             return;
         }
 
-        // Reset completo del form
         const tipoSelect = document.getElementById("dato-tipo");
         tipoSelect.value = ""; 
         const defaultOption = tipoSelect.querySelector('option[value=""]');
@@ -577,7 +587,6 @@ async function aggiungiDato() {
     }
 
   } else if (tipo === "scarico") {
-    // Logica per lo scarico
     try {
         const res = await fetch("/api/dati", {
             method: "POST",
@@ -599,7 +608,6 @@ async function aggiungiDato() {
             return;
         }
 
-        // Reset completo del form
         const tipoSelect = document.getElementById("dato-tipo");
         tipoSelect.value = ""; 
         const defaultOption = tipoSelect.querySelector('option[value=""]');

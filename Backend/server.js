@@ -1,10 +1,11 @@
-// Installazione: npm install express sqlite3 cors
+// Installazione: npm install express sqlite3 cors bcrypt
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
 const os = require("os");
 const { exec } = require("child_process");
 const { initDatabase } = require("./db/init");
+const authRoutes = require("./routes/auth");
 const prodottiRoutes = require("./routes/prodotti");
 const datiRoutes = require("./routes/dati");
 const magazzinoRoutes = require("./routes/magazzino");
@@ -20,6 +21,7 @@ app.use(express.static(path.join(__dirname, "../frontend")));
 initDatabase();
 
 // Routes
+app.use("/api/auth", authRoutes);
 app.use("/api/prodotti", prodottiRoutes);
 app.use("/api/dati", datiRoutes);
 app.use("/api", magazzinoRoutes);

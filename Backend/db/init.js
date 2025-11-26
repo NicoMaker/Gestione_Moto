@@ -1,4 +1,5 @@
 const sqlite3 = require("sqlite3").verbose();
+const bcrypt = require("bcrypt");
 const path = require("path");
 const fs = require("fs");
 
@@ -12,13 +13,15 @@ if (!fs.existsSync(dbDir)) {
 const dbPath = path.join(dbDir, "magazzino.db");
 const db = new sqlite3.Database(dbPath);
 
-function initDatabase() {
-  db.serialize(() => {
+async function initDatabase() {
+  db.serialize(async () => {
+    // Tabella prodotti
     db.run(`CREATE TABLE IF NOT EXISTS prodotti (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       nome TEXT UNIQUE NOT NULL
     )`);
 
+    // Tabella dati
     db.run(`CREATE TABLE IF NOT EXISTS dati (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prodotto_id INTEGER,
@@ -33,6 +36,7 @@ function initDatabase() {
       FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
     )`);
 
+    // Tabella lotti
     db.run(`CREATE TABLE IF NOT EXISTS lotti (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       prodotto_id INTEGER,
@@ -45,6 +49,49 @@ function initDatabase() {
       fornitore_cliente_id TEXT,
       FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
     )`);
+
+    // Tabella users per autenticazione
+    db.run(`CREATE TABLE IF NOT EXISTS users (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      username TEXT UNIQUE NOT NULL,
+      password TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )`, async (err) => {
+      if (err) {
+        console.error("Errore creazione tabella users:", err);
+        return;
+      }
+
+      // Verifica se esiste già l'utente admin
+      db.get("SELECT * FROM users WHERE username = ?", ["admin"], async (err, row) => {
+        if (err) {
+          console.error("Errore verifica utente admin:", err);
+          return;
+        }
+
+        // Se non esiste, crea l'utente admin con password hashata
+        if (!row) {
+          try {
+            const hashedPassword = await bcrypt.hash("admin123!", 10);
+            const createdAt = new Date().toISOString();
+            
+            db.run(
+              "INSERT INTO users (username, password, created_at) VALUES (?, ?, ?)",
+              ["admin", hashedPassword, createdAt],
+              (err) => {
+                if (err) {
+                  console.error("Errore creazione utente admin:", err);
+                } else {
+                  console.log("✅ Utente admin creato con successo");
+                }
+              }
+            );
+          } catch (error) {
+            console.error("Errore hashing password:", error);
+          }
+        }
+      });
+    });
   });
 }
 
