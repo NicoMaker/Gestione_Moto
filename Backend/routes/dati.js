@@ -1,6 +1,6 @@
 const express = require("express");
 const router = express.Router();
-const { db } = require("../database/init");
+const { db } = require("../db/init");
 
 // GET - Lista tutti i movimenti
 router.get("/", (req, res) => {
