@@ -87,7 +87,7 @@ function setInitialDate() {
 }
 
 // =========================================================================
-// 🔄 GESTIONE INTERFACCIA E REFRESH DATI
+// 🔄 GESTIONE INTERFACCIA E REFRESH DATI (AGGIORNATO per coerenza)
 // =========================================================================
 
 function switchTab(tabId) {
@@ -109,19 +109,22 @@ function switchTab(tabId) {
   // Ricarica i dati specifici per il tab
   if (tabId === "prodotti") caricaProdotti();
   if (tabId === "dati") caricaDati();
-  if (tabId === "riepilogo") caricaRiepilogo();
+  if (tabId === "riepilogo") caricaRiepilogo(true); // Forzo il ridisegno del riepilogo
   if (tabId === "utenti") caricaUtenti();
 }
 
+// AGGIORNATO: Forziamo il ricarico di Prodotti e Riepilogo per l'aggiornamento in tempo reale
 async function refreshAllData() {
-  await caricaProdotti(false); // Carica senza ridisegnare la tabella Prodotti
-  caricaSelectProdotti(); // Aggiorna la select Prodotti
+  await caricaProdotti(true); // Carica e ridisegna SEMPRE la tabella Prodotti
+  caricaSelectProdotti(); // Aggiorna la select Prodotti (che ha i dati di giacenza)
+
+  // Ricarica la tabella Movimenti SOLO se è il tab attivo
   if (document.getElementById("dati-section").classList.contains("active")) {
-    await caricaDati();
+    await caricaDati(); 
   }
-  if (document.getElementById("riepilogo-section").classList.contains("active")) {
-    await caricaRiepilogo();
-  }
+  
+  // Ricarica Riepilogo e Valore Magazzino per l'aggiornamento immediato
+  await caricaRiepilogo(true); 
 }
 
 // =========================================================================
@@ -143,13 +146,13 @@ async function caricaProdotti(drawTable = true) {
   }
 }
 
+// AGGIORNATO: Rimosso ID dalla visualizzazione
 function disegnaTabellaProdotti() {
   const tbody = document.getElementById("prodotti-body");
   tbody.innerHTML = prodotti
     .map(
       (p) => `
       <tr>
-        <td>${p.id}</td>
         <td>${p.nome}</td>
         <td style="text-align:right">${p.giacenza}</td>
         <td class="actions">
@@ -335,6 +338,7 @@ async function caricaDati() {
   }
 }
 
+// AGGIORNATO: Rimosso ID dalla visualizzazione
 function disegnaTabellaDati() {
   const tbody = document.getElementById("dati-body");
   tbody.innerHTML = dati
@@ -353,7 +357,6 @@ function disegnaTabellaDati() {
 
       return `
       <tr>
-        <td>${d.id}</td>
         <td>${formatDate(d.data_movimento)}</td>
         <td>${d.prodotto_nome}</td>
         <td class="${tipoClass}">${d.tipo.toUpperCase()}</td>
@@ -466,7 +469,7 @@ async function aggiungiDato() {
     setInitialDate();
     toggleCaricoFields();
     mostraAlert("success", `Movimento di ${tipo.toUpperCase()} registrato con successo`, "dati");
-    await refreshAllData(); // Aggiorna i dati per i 3 tab
+    await refreshAllData(); // AGGIORNATO: Aggiorna i dati per i 3 tab (inclusi prodotti e riepilogo)
   } catch (err) {
     console.error("Errore durante l'aggiunta", err);
     mostraAlert("error", "Errore di rete durante l'aggiunta", "dati");
@@ -493,7 +496,7 @@ async function eliminaDato(id, tipo, nomeProdotto, quantita) {
     }
 
     mostraAlert("success", data.message || `${tipo.toUpperCase()} annullato con successo.`, "dati");
-    await refreshAllData();
+    await refreshAllData(); // AGGIORNATO: Aggiorna i dati per i 3 tab (inclusi prodotti e riepilogo)
   } catch (err) {
     console.error(err);
     mostraAlert("error", "Errore di rete durante l'annullamento", "dati");
@@ -504,13 +507,16 @@ async function eliminaDato(id, tipo, nomeProdotto, quantita) {
 // 📊 GESTIONE RIEPILOGO
 // =========================================================================
 
-async function caricaRiepilogo() {
+async function caricaRiepilogo(drawTable = false) {
   try {
     const res = await fetch("/api/riepilogo");
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Errore nel caricamento riepilogo");
     riepilogo = data;
-    disegnaTabellaRiepilogo();
+    // Disegna la tabella solo se il tab è attivo o se drawTable è forzato da refreshAllData()
+    if (document.getElementById("riepilogo-section").classList.contains("active") || drawTable) {
+      disegnaTabellaRiepilogo();
+    }
     await caricaValoreMagazzino();
   } catch (err) {
     console.error(err);
@@ -531,13 +537,13 @@ async function caricaValoreMagazzino() {
 }
 
 
+// AGGIORNATO: Rimosso ID dalla visualizzazione
 function disegnaTabellaRiepilogo() {
   const tbody = document.getElementById("riepilogo-body");
   tbody.innerHTML = riepilogo
     .map(
       (r) => `
       <tr>
-        <td>${r.id}</td>
         <td>${r.nome}</td>
         <td style="text-align:right">${r.giacenza}</td>
         <td style="text-align:right" class="text-success">€ ${formatNumber(r.valore_totale)}</td>
@@ -612,13 +618,13 @@ async function caricaUtenti() {
   }
 }
 
+// AGGIORNATO: Rimosso ID dalla visualizzazione
 function disegnaTabellaUtenti() {
   const tbody = document.getElementById("utenti-body");
   tbody.innerHTML = utenti
     .map(
       (u) => `
       <tr>
-        <td>${u.id}</td>
         <td>${u.username}</td>
         <td class="actions">
           <button class="btn btn-secondary" onclick="apriModalModificaUtente(${u.id}, '${u.username}')">Modifica</button>
