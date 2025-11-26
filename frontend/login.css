@@ -26,111 +26,93 @@
 body {
   font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     sans-serif;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  min-height: 100vh;
+  background: linear-gradient(135deg, var(--primary-light) 0%, var(--primary) 100%);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
+  min-height: 100vh;
   padding: 20px;
-  position: relative;
-  overflow: hidden;
-}
-
-body::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.05'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
-  opacity: 0.3;
 }
 
 .login-container {
-  background: var(--white);
+  background-color: var(--white);
+  padding: 40px;
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   width: 100%;
-  max-width: 440px;
-  padding: 48px;
-  position: relative;
-  animation: slideUp 0.5s ease-out;
-}
-
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(30px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.login-header {
+  max-width: 400px;
   text-align: center;
-  margin-bottom: 40px;
+}
+
+/* ===================== Header ===================== */
+.login-header {
+  margin-bottom: 30px;
 }
 
 .login-icon {
-  font-size: 64px;
-  margin-bottom: 16px;
+  font-size: 40px;
   display: block;
+  margin-bottom: 10px;
 }
 
-h1 {
+.login-header h1 {
+  font-size: 24px;
   color: var(--dark);
-  font-size: 28px;
-  font-weight: 700;
-  margin-bottom: 8px;
+  margin-bottom: 5px;
 }
 
 .login-subtitle {
+  font-size: 14px;
   color: var(--gray);
-  font-size: 15px;
+}
+
+/* ===================== Forms ===================== */
+#login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .form-group {
-  margin-bottom: 24px;
+  text-align: left;
 }
 
-label {
+.form-group label {
   display: block;
-  margin-bottom: 8px;
+  font-size: 14px;
   font-weight: 600;
   color: var(--dark);
-  font-size: 14px;
+  margin-bottom: 8px;
 }
 
-input {
+input[type="text"],
+input[type="password"] {
   width: 100%;
-  padding: 14px 16px;
-  border: 2px solid #e5e7eb;
+  padding: 12px 15px;
+  border: 1px solid var(--gray-border);
   border-radius: var(--radius);
-  font-size: 15px;
-  transition: all 0.3s;
-  background: var(--white);
+  font-size: 16px;
   color: var(--dark);
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
 
 input:focus {
-  outline: none;
   border-color: var(--primary);
-  box-shadow: 0 0 0 3px var(--primary-light);
+  outline: none;
+  box-shadow: 0 0 0 2px var(--primary-light);
 }
 
+/* ===================== Buttons ===================== */
 .btn-login {
   width: 100%;
-  padding: 14px 24px;
+  padding: 12px 15px;
   border: none;
   border-radius: var(--radius);
-  cursor: pointer;
+  font-weight: 700;
   font-size: 16px;
-  font-weight: 600;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  color: white;
+  cursor: pointer;
+  background-color: var(--primary);
+  color: var(--white);
   transition: all 0.3s;
   margin-top: 12px;
 }
@@ -148,8 +130,29 @@ input:focus {
   opacity: 0.6;
   cursor: not-allowed;
   transform: none;
+  box-shadow: none;
 }
 
+/* Spinner CSS */
+.loading-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  border-top-color: #fff;
+  animation: spin 1s ease-in-out infinite;
+  margin-right: 8px;
+  vertical-align: middle;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ===================== Alerts ===================== */
 .alert {
   padding: 14px 16px;
   border-radius: var(--radius);
@@ -179,46 +182,8 @@ input:focus {
   border-left: 4px solid var(--danger);
 }
 
-.alert-error::before {
-  content: "⚠️";
-  font-size: 18px;
-}
-
-.loading-spinner {
-  display: inline-block;
-  width: 16px;
-  height: 16px;
-  border: 2px solid rgba(255, 255, 255, 0.3);
-  border-top-color: white;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.footer-note {
-  text-align: center;
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid #e5e7eb;
-  color: var(--gray);
-  font-size: 13px;
-}
-
-@media (max-width: 480px) {
-  .login-container {
-    padding: 32px 24px;
-  }
-
-  h1 {
-    font-size: 24px;
-  }
-
-  .login-icon {
-    font-size: 48px;
-  }
+.credits {
+    margin-top: 20px;
+    font-size: 12px;
+    color: var(--gray);
 }

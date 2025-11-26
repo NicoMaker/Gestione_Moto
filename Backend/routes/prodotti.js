@@ -36,7 +36,9 @@ router.post("/", (req, res) => {
     function (err) {
       if (err) {
         if (err.message.includes("UNIQUE")) {
-          return res.status(400).json({ error: "Prodotto già esistente" });
+          return res.status(400).json({
+            error: `Il prodotto "${nome.trim()}" esiste già.`,
+          });
         }
         return res.status(500).json({ error: err.message });
       }
@@ -45,7 +47,7 @@ router.post("/", (req, res) => {
   );
 });
 
-// PUT - Aggiorna prodotto
+// PUT - Aggiorna nome prodotto
 router.put("/:id", (req, res) => {
   const { id } = req.params;
   const { nome } = req.body;
@@ -54,47 +56,53 @@ router.put("/:id", (req, res) => {
     return res.status(400).json({ error: "Nome prodotto obbligatorio" });
   }
 
-  db.run("UPDATE prodotti SET nome = ? WHERE id = ?", [nome.trim(), id], function (err) {
-    if (err) {
-      if (err.message.includes("UNIQUE")) {
-        return res.status(400).json({ error: "Prodotto già esistente" });
+  db.run(
+    "UPDATE prodotti SET nome = ? WHERE id = ?",
+    [nome.trim(), id],
+    function (err) {
+      if (err) {
+        if (err.message.includes("UNIQUE")) {
+          return res.status(400).json({
+            error: `Il prodotto "${nome.trim()}" esiste già.`,
+          });
+        }
+        return res.status(500).json({ error: err.message });
       }
-      return res.status(500).json({ error: err.message });
+      if (this.changes === 0) {
+        return res.status(404).json({ error: "Prodotto non trovato" });
+      }
+      res.json({ id: parseInt(id), nome: nome.trim() });
     }
-
-    if (this.changes === 0) {
-      return res.status(404).json({ error: "Prodotto non trovato" });
-    }
-
-    res.json({ success: true, nome: nome.trim() });
-  });
+  );
 });
 
-// DELETE - Elimina prodotto
+// DELETE - Elimina prodotto (solo se giacenza è zero)
 router.delete("/:id", (req, res) => {
   const { id } = req.params;
 
   db.serialize(() => {
     db.run("BEGIN TRANSACTION;");
 
-    // 1. Controlla la giacenza
+    // 1. Verifica che la giacenza sia zero
     db.get(
       "SELECT COALESCE(SUM(quantita_rimanente), 0) as giacenza FROM lotti WHERE prodotto_id = ?",
       [id],
       (err, row) => {
         if (err) {
           db.run("ROLLBACK;");
-          return res.status(500).json({ error: err.message });
+          return res
+            .status(500)
+            .json({ error: `Errore verifica giacenza: ${err.message}` });
         }
 
         if (row.giacenza > 0) {
           db.run("ROLLBACK;");
           return res.status(400).json({
-            error: `Impossibile eliminare: giacenza residua di ${row.giacenza} unità.`,
+            error: `Impossibile eliminare: la giacenza è ${row.giacenza}. Annulla prima tutti i movimenti.`,
           });
         }
 
-        // 2. Elimina i lotti (se giacenza è 0, elimina anche i lotti totalmente consumati)
+        // 2. Elimina i lotti (dovrebbe essere vuota, ma per sicurezza)
         db.run("DELETE FROM lotti WHERE prodotto_id = ?", [id], (err) => {
           if (err) {
             db.run("ROLLBACK;");
@@ -134,7 +142,8 @@ router.delete("/:id", (req, res) => {
                 }
                 res.json({
                   success: true,
-                  message: "Prodotto, lotti e movimenti associati eliminati con successo.",
+                  message:
+                    "Prodotto, lotti e movimenti associati eliminati con successo.",
                 });
               });
             });

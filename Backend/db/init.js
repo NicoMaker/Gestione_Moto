@@ -38,28 +38,25 @@ async function initDatabase() {
         data_registrazione TEXT NOT NULL,
         fattura_doc TEXT,
         fornitore_cliente_id TEXT,
-        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
+        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id) ON DELETE CASCADE
       )
     `);
 
-    // Tabella lotti (per la gestione FIFO)
+    // Tabella lotti (per giacenza e FIFO)
     db.run(`
       CREATE TABLE IF NOT EXISTS lotti (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         prodotto_id INTEGER NOT NULL,
-        quantita_iniziale INTEGER NOT NULL CHECK(quantita_iniziale > 0),
-        quantita_rimanente INTEGER NOT NULL CHECK(quantita_rimanente >= 0),
+        quantita_iniziale INTEGER NOT NULL,
+        quantita_rimanente INTEGER NOT NULL,
         prezzo REAL NOT NULL,
-        data_carico TEXT NOT NULL,
         data_registrazione TEXT NOT NULL,
-        fattura_doc TEXT,
-        fornitore_cliente_id TEXT,
-        dati_id INTEGER,
-        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id),
-        FOREIGN KEY(dati_id) REFERENCES dati(id)
+        dati_id INTEGER UNIQUE NOT NULL, -- Link al movimento di carico
+        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id) ON DELETE CASCADE,
+        FOREIGN KEY(dati_id) REFERENCES dati(id) ON DELETE CASCADE
       )
     `);
-
+    
     // Tabella utenti
     db.run(
       `
@@ -98,7 +95,7 @@ async function initDatabase() {
                     if (err3) {
                       console.error("Errore creazione utente Admin:", err3);
                     } else {
-                      console.log("✅ Utente Admin creato con successo");
+                      console.log("✅ Utente Admin creato con successo. Password: Admin123!");
                     }
                   }
                 );

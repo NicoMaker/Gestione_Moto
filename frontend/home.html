@@ -169,7 +169,7 @@
       
       <div id="storico-section" class="section">
           <h2>Situazione Storica Magazzino</h2>
-          <p>Visualizza la giacenza netta e i movimenti registrati fino alla data selezionata.</p>
+          <p>Visualizza la giacenza netta, il valore e i movimenti registrati fino alla data selezionata.</p>
           <div id="storico-alert"></div>
 
           <div class="form-container" style="max-width: 400px;">
@@ -180,13 +180,16 @@
               <button class="btn btn-primary" onclick="caricaDatiStorici()">Visualizza Storico</button>
           </div>
 
-          <h3 style="margin-top: 30px;">Giacenza Netta alla Data: <span id="storico-display-data"></span></h3>
+          <h3 style="margin-top: 30px;">Giacenza Netta e Valore alla Data: <span id="storico-display-data"></span></h3>
+          <p class="summary-total">Valore Totale Magazzino Storico (Costo FIFO): <strong id="valore-magazzino-storico">€ 0,00</strong></p>
           <div class="table-container">
               <table id="storico-giacenza-table">
                   <thead>
                       <tr>
                           <th>Prodotto</th>
                           <th style="text-align:right">Giacenza Netta</th>
+                          <th style="text-align:right">Valore Totale</th>
+                          <th>Azioni</th>
                       </tr>
                   </thead>
                   <tbody id="storico-giacenza-body">
@@ -300,6 +303,33 @@
             </tr>
           </thead>
           <tbody id="lotti-body">
+            </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-dettaglio-lotti-storico" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="dettaglio-prodotto-nome-storico">Dettaglio Lotti Storico</h3>
+        <p>Situazione dei carichi e scarichi (FIFO) fino al: <strong id="storico-lotti-data-display"></strong></p>
+      </div>
+      <button class="btn-close" onclick="chiudiModalDettaglioLottiStorico()">❌</button>
+      <div class="table-container">
+        <table id="lotti-storico-table">
+          <thead>
+            <tr>
+              <th>ID Carico</th>
+              <th>Data Carico</th>
+              <th style="text-align:right">Qtà Iniziale</th>
+              <th style="text-align:right">Qtà Venduta (Storico)</th>
+              <th style="text-align:right">Qtà Rimanente (Storico)</th>
+              <th style="text-align:right">Prezzo Unitario</th>
+              <th style="text-align:right">Valore Lotto Rimanente</th>
+            </tr>
+          </thead>
+          <tbody id="lotti-storico-body">
             </tbody>
         </table>
       </div>
