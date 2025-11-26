@@ -43,11 +43,17 @@ router.post("/", async (req, res) => {
       .json({ error: "Username e password obbligatori" });
   }
 
-  // Saltiamo il check di forza per semplificare l'interfaccia, 
-  // ma la validazione minima è comunque nel frontend.
-  // if (!isPasswordStrong(password)) {
-  //   return res.status(400).json({ error: "Password troppo debole..." });
-  // }
+  if (username.length < 3) {
+    return res
+      .status(400)
+      .json({ error: "Username deve contenere almeno 3 caratteri." });
+  }
+
+  if (!isPasswordStrong(password)) {
+    return res.status(400).json({
+      error: "La password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
+    });
+  }
 
   try {
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -59,11 +65,11 @@ router.post("/", async (req, res) => {
       function (err) {
         if (err) {
           if (err.message.includes("UNIQUE")) {
-            return res.status(400).json({
-              error: `L'utente "${username.trim()}" esiste già.`,
-            });
+            return res
+              .status(400)
+              .json({ error: "Username già esistente" });
           }
-          console.error("Errore creazione utente:", err);
+          console.error("Errore inserimento utente:", err);
           return res
             .status(500)
             .json({ error: "Errore durante la creazione utente" });
@@ -73,29 +79,24 @@ router.post("/", async (req, res) => {
     );
   } catch (error) {
     console.error("Errore hashing password:", error);
-    res
-      .status(500)
-      .json({ error: "Errore durante l'elaborazione della password" });
+    res.status(500).json({ error: "Errore di sicurezza nella gestione password" });
   }
 });
 
-// PUT /api/utenti/:id - modifica utente (username e/o password)
+// PUT /api/utenti/:id - modifica utente
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
   const { username, password } = req.body;
 
-  if (!username) {
-    return res.status(400).json({ error: "Username obbligatorio" });
-  }
-  
-  if (password && password.length < 8) {
-     return res.status(400).json({ error: "La password deve contenere almeno 8 caratteri." });
+  if (!username && !password) {
+    return res
+      .status(400)
+      .json({ error: "Almeno Username o Password sono obbligatori per l'aggiornamento" });
   }
 
-  // 1. Recupera l'utente corrente per mantenere la password se non viene modificata
-  db.get("SELECT * FROM users WHERE id = ?", [id], async (err, user) => {
-    if (err) {
-      console.error("Errore recupero utente:", err);
+  db.get("SELECT * FROM users WHERE id = ?", [id], async (err1, user) => {
+    if (err1) {
+      console.error("Errore recupero utente per modifica:", err1);
       return res
         .status(500)
         .json({ error: "Errore durante il recupero utente" });
@@ -105,39 +106,75 @@ router.put("/:id", async (req, res) => {
     }
 
     let newUsername = username ? username.trim() : user.username;
-    let newPasswordHash = user.password; // Mantiene la vecchia hash di default
+    let newPasswordHash = user.password;
 
-    // Se è stata fornita una nuova password, la hash
+    if (username && username.length < 3) {
+      return res.status(400).json({ error: "Username deve contenere almeno 3 caratteri." });
+    }
+
     if (password) {
+      if (!isPasswordStrong(password)) {
+        return res.status(400).json({
+          error: "La nuova password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
+        });
+      }
       try {
         newPasswordHash = await bcrypt.hash(password, 10);
-      } catch (hashError) {
-        console.error("Errore hashing nuova password:", hashError);
-        return res
-          .status(500)
-          .json({ error: "Errore durante l'elaborazione della password" });
+      } catch (error) {
+        console.error("Errore hashing nuova password:", error);
+        return res.status(500).json({ error: "Errore di sicurezza nella gestione password" });
       }
     }
 
-    // 2. Aggiorna l'utente (username e/o password)
-    db.run(
-      "UPDATE users SET username = ?, password = ? WHERE id = ?",
-      [newUsername, newPasswordHash, id],
-      function (err3) {
-        if (err3) {
-          if (err3.message.includes("UNIQUE")) {
-            return res.status(400).json({
-              error: `L'utente "${newUsername}" esiste già.`,
-            });
+    // Verifica unicità username, se è stato cambiato
+    if (newUsername !== user.username) {
+      db.get(
+        "SELECT id FROM users WHERE username = ? AND id != ?",
+        [newUsername, id],
+        (err2, existingUser) => {
+          if (err2) {
+            console.error("Errore verifica unicità username:", err2);
+            return res
+              .status(500)
+              .json({ error: "Errore durante la verifica username" });
           }
-          console.error("Errore aggiornamento utente:", err3);
-          return res
-            .status(500)
-            .json({ error: "Errore durante l'aggiornamento utente" });
+          if (existingUser) {
+            return res
+              .status(400)
+              .json({ error: "Username già in uso da un altro utente" });
+          }
+
+          db.run(
+            "UPDATE users SET username = ?, password = ? WHERE id = ?",
+            [newUsername, newPasswordHash, id],
+            function (err3) {
+              if (err3) {
+                console.error("Errore aggiornamento utente:", err3);
+                return res
+                  .status(500)
+                  .json({ error: "Errore durante l'aggiornamento utente" });
+              }
+              res.json({ id, username: newUsername });
+            }
+          );
         }
-        res.json({ id, username: newUsername });
-      }
-    );
+      );
+    } else {
+      // Aggiornamento solo se l'username non è cambiato o solo la password
+      db.run(
+        "UPDATE users SET username = ?, password = ? WHERE id = ?",
+        [newUsername, newPasswordHash, id],
+        function (err3) {
+          if (err3) {
+            console.error("Errore aggiornamento utente:", err3);
+            return res
+              .status(500)
+              .json({ error: "Errore durante l'aggiornamento utente" });
+          }
+          res.json({ id, username: newUsername });
+        }
+      );
+    }
   });
 });
 
@@ -166,12 +203,10 @@ router.delete("/:id", (req, res) => {
           .status(500)
           .json({ error: "Errore durante l'eliminazione utente" });
       }
-
       if (this.changes === 0) {
         return res.status(404).json({ error: "Utente non trovato" });
       }
-
-      res.json({ success: true, message: "Utente eliminato con successo" });
+      res.json({ success: true, id });
     });
   });
 });

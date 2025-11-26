@@ -1,4 +1,4 @@
-// routes/dati.js
+// routes/dati.js (Modificato)
 
 const express = require("express");
 const router = express.Router();
@@ -35,15 +35,7 @@ router.get("/", (req, res) => {
 
 // POST - Crea nuovo movimento (carico o scarico)
 router.post("/", (req, res) => {
-  // Cambiato da const a let per permettere la conversione/trim
-  let { prodotto_id, tipo, quantita, prezzo, data_movimento, fattura_doc, fornitore_cliente_id } = req.body; 
-
-  // FIX: Conversione esplicita a stringa e trim
-  // Questo previene che un valore vuoto o non tipizzato correttamente
-  // venga interpretato come NULL da SQLite.
-  if (data_movimento !== null && data_movimento !== undefined) {
-      data_movimento = String(data_movimento).trim();
-  }
+  const { prodotto_id, tipo, quantita, prezzo, data_movimento, fattura_doc, fornitore_cliente_id } = req.body;
 
   if (!prodotto_id || !tipo || !quantita || !data_movimento) {
     return res.status(400).json({ 

@@ -3,10 +3,15 @@ const loginBtn = document.getElementById("login-btn");
 const btnText = document.getElementById("btn-text");
 const alertContainer = document.getElementById("alert-container");
 
+// *** PARTE RIMOSSA: ***
+// if (localStorage.getItem("isLoggedIn") === "true") {
+//   window.location.href = "/home.html";
+// }
 // L'utente deve sempre inserire le credenziali, non viene reindirizzato in automatico.
+// *** FINE PARTE RIMOSSA ***
 
 function showAlert(message) {
-  alertContainer.innerHTML = `<div class="alert alert-error">❌ ${message}</div>`;
+  alertContainer.innerHTML = `<div class="alert alert-error">${message}</div>`;
   setTimeout(() => {
     alertContainer.innerHTML = "";
   }, 5000);
@@ -37,11 +42,13 @@ loginForm.addEventListener("submit", async (e) => {
     if (response.ok) {
       // Login riuscito
       // Manteniamo il salvataggio in localStorage per indicare l'avvenuto login
-      // e per memorizzare lo username
+      // e per memorizzare lo username, ma NON lo useremo per l'autologin
       localStorage.setItem("isLoggedIn", "true");
       localStorage.setItem("username", data.username);
 
       // Reindirizza alla pagina principale
+      // Ho corretto il reindirizzamento a /home.html come nel codice originale (se era quello corretto)
+      // Se vuoi index.html, lascia come era: window.location.href = "/index.html";
       window.location.href = "/home.html"; 
     } else {
       // Login fallito
@@ -54,5 +61,12 @@ loginForm.addEventListener("submit", async (e) => {
     showAlert("Errore di connessione al server");
     loginBtn.disabled = false;
     btnText.textContent = "Accedi";
+  }
+});
+
+// Permetti l'invio con Enter
+document.getElementById("password").addEventListener("keypress", (e) => {
+  if (e.key === "Enter") {
+    loginForm.dispatchEvent(new Event("submit"));
   }
 });

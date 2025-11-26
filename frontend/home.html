@@ -26,7 +26,6 @@
       <button class="tab active" onclick="switchTab('prodotti')">Prodotti</button>
       <button class="tab" onclick="switchTab('dati')">Carico/Scarico</button>
       <button class="tab" onclick="switchTab('riepilogo')">Riepilogo</button>
-      <button class="tab" onclick="switchTab('storico')">Storico (Data)</button>
       <button class="tab" onclick="switchTab('utenti')">Utenti</button>
     </div>
 
@@ -167,56 +166,6 @@
         </div>
       </div>
       
-      <div id="storico-section" class="section">
-          <h2>Situazione Storica Magazzino</h2>
-          <p>Visualizza la giacenza netta, il valore e i movimenti registrati fino alla data selezionata.</p>
-          <div id="storico-alert"></div>
-
-          <div class="form-container" style="max-width: 400px;">
-              <div class="form-group">
-                  <label for="storico-data">Seleziona Data</label>
-                  <input type="date" id="storico-data" required />
-              </div>
-              <button class="btn btn-primary" onclick="caricaDatiStorici()">Visualizza Storico</button>
-          </div>
-
-          <h3 style="margin-top: 30px;">Giacenza Netta e Valore alla Data: <span id="storico-display-data"></span></h3>
-          <p class="summary-total">Valore Totale Magazzino Storico (Costo FIFO): <strong id="valore-magazzino-storico">€ 0,00</strong></p>
-          <div class="table-container">
-              <table id="storico-giacenza-table">
-                  <thead>
-                      <tr>
-                          <th>Prodotto</th>
-                          <th style="text-align:right">Giacenza Netta</th>
-                          <th style="text-align:right">Valore Totale</th>
-                          <th>Azioni</th>
-                      </tr>
-                  </thead>
-                  <tbody id="storico-giacenza-body">
-                  </tbody>
-              </table>
-          </div>
-          
-          <h3 style="margin-top: 30px;">Movimenti Registrati Fino alla Data: <span id="storico-movimenti-data"></span></h3>
-          <div class="table-container">
-              <table id="storico-dati-table">
-                  <thead>
-                      <tr>
-                          <th>Data</th>
-                          <th>Prodotto</th>
-                          <th>Tipo</th>
-                          <th style="text-align:right">Quantità</th>
-                          <th style="text-align:right">Prezzo Unitario</th>
-                          <th style="text-align:right">Costo Totale</th>
-                          <th>Fattura/Doc.</th>
-                          <th>Forn./Cli.</th>
-                      </tr>
-                  </thead>
-                  <tbody id="storico-dati-body">
-                  </tbody>
-              </table>
-          </div>
-      </div>
       <div id="utenti-section" class="section">
         <h2>Gestione Utenti</h2>
         <div id="utenti-alert"></div>
@@ -303,33 +252,6 @@
             </tr>
           </thead>
           <tbody id="lotti-body">
-            </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
-  <div id="modal-dettaglio-lotti-storico" class="modal">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h3 id="dettaglio-prodotto-nome-storico">Dettaglio Lotti Storico</h3>
-        <p>Situazione dei carichi e scarichi (FIFO) fino al: <strong id="storico-lotti-data-display"></strong></p>
-      </div>
-      <button class="btn-close" onclick="chiudiModalDettaglioLottiStorico()">❌</button>
-      <div class="table-container">
-        <table id="lotti-storico-table">
-          <thead>
-            <tr>
-              <th>ID Carico</th>
-              <th>Data Carico</th>
-              <th style="text-align:right">Qtà Iniziale</th>
-              <th style="text-align:right">Qtà Venduta (Storico)</th>
-              <th style="text-align:right">Qtà Rimanente (Storico)</th>
-              <th style="text-align:right">Prezzo Unitario</th>
-              <th style="text-align:right">Valore Lotto Rimanente</th>
-            </tr>
-          </thead>
-          <tbody id="lotti-storico-body">
             </tbody>
         </table>
       </div>
