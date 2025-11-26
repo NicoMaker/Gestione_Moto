@@ -16,82 +16,96 @@ const db = new sqlite3.Database(dbPath);
 async function initDatabase() {
   db.serialize(async () => {
     // Tabella prodotti
-    db.run(`CREATE TABLE IF NOT EXISTS prodotti (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      nome TEXT UNIQUE NOT NULL
-    )`);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS prodotti (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nome TEXT UNIQUE NOT NULL
+      )
+    `);
 
     // Tabella dati
-    db.run(`CREATE TABLE IF NOT EXISTS dati (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prodotto_id INTEGER,
-      tipo TEXT CHECK(tipo IN ('carico', 'scarico')),
-      quantita INTEGER NOT NULL CHECK(quantita > 0),
-      prezzo REAL,
-      prezzo_totale_movimento REAL,
-      data_movimento TEXT NOT NULL,
-      data_registrazione TEXT NOT NULL,
-      fattura_doc TEXT,
-      fornitore_cliente_id TEXT,
-      FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
-    )`);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS dati (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prodotto_id INTEGER,
+        tipo TEXT CHECK(tipo IN ('carico', 'scarico')),
+        quantita INTEGER NOT NULL CHECK(quantita > 0),
+        prezzo REAL,
+        prezzo_totale_movimento REAL,
+        data_movimento TEXT NOT NULL,
+        data_registrazione TEXT NOT NULL,
+        fattura_doc TEXT,
+        fornitore_cliente_id TEXT,
+        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
+      )
+    `);
 
     // Tabella lotti
-    db.run(`CREATE TABLE IF NOT EXISTS lotti (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      prodotto_id INTEGER,
-      quantita_iniziale INTEGER NOT NULL,
-      quantita_rimanente INTEGER NOT NULL,
-      prezzo REAL NOT NULL,
-      data_carico TEXT NOT NULL,
-      data_registrazione TEXT NOT NULL,
-      fattura_doc TEXT,
-      fornitore_cliente_id TEXT,
-      FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
-    )`);
+    db.run(`
+      CREATE TABLE IF NOT EXISTS lotti (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        prodotto_id INTEGER,
+        quantita_iniziale INTEGER NOT NULL,
+        quantita_rimanente INTEGER NOT NULL,
+        prezzo REAL NOT NULL,
+        data_carico TEXT NOT NULL,
+        data_registrazione TEXT NOT NULL,
+        fattura_doc TEXT,
+        fornitore_cliente_id TEXT,
+        FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
+      )
+    `);
 
     // Tabella users per autenticazione
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      username TEXT UNIQUE NOT NULL,
-      password TEXT NOT NULL,
-      created_at TEXT NOT NULL
-    )`, async (err) => {
-      if (err) {
-        console.error("Errore creazione tabella users:", err);
-        return;
-      }
-
-      // Verifica se esiste già l'utente Admin
-      db.get("SELECT * FROM users WHERE username = ?", ["Admin"], async (err, row) => {
+    db.run(
+      `
+      CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        username TEXT UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        createdat TEXT NOT NULL
+      )
+    `,
+      async (err) => {
         if (err) {
-          console.error("Errore verifica utente Admin:", err);
+          console.error("Errore creazione tabella users:", err);
           return;
         }
 
-        // Se non esiste, crea l'utente Admin con password hashata
-        if (!row) {
-          try {
-            const hashedPassword = await bcrypt.hash("Admin123!", 10);
-            const createdAt = new Date().toISOString();
-            
-            db.run(
-              "INSERT INTO users (username, password, created_at) VALUES (?, ?, ?)",
-              ["Admin", hashedPassword, createdAt],
-              (err) => {
-                if (err) {
-                  console.error("Errore creazione utente Admin:", err);
-                } else {
-                  console.log("✅ Utente Admin creato con successo");
-                }
+        // Verifica se esiste già l'utente Admin
+        db.get(
+          "SELECT * FROM users WHERE username = ?",
+          ["Admin"],
+          async (err2, row) => {
+            if (err2) {
+              console.error("Errore verifica utente Admin:", err2);
+              return;
+            }
+
+            // Se non esiste, crea l'utente Admin con password hashata
+            if (!row) {
+              try {
+                const hashedPassword = await bcrypt.hash("Admin123!", 10);
+                const createdAt = new Date().toISOString();
+                db.run(
+                  "INSERT INTO users (username, password, createdat) VALUES (?, ?, ?)",
+                  ["Admin", hashedPassword, createdAt],
+                  (err3) => {
+                    if (err3) {
+                      console.error("Errore creazione utente Admin:", err3);
+                    } else {
+                      console.log("✅ Utente Admin creato con successo");
+                    }
+                  }
+                );
+              } catch (error) {
+                console.error("Errore hashing password:", error);
               }
-            );
-          } catch (error) {
-            console.error("Errore hashing password:", error);
+            }
           }
-        }
-      });
-    });
+        );
+      }
+    );
   });
 }
 
