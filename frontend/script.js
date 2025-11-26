@@ -3,6 +3,21 @@ let dati = [];
 let prodottoInModifica = null;
 let prodottoDettaglio = null;
 
+// ⭐ FUNZIONE DI RILEVAMENTO CARATTERI PROIBITI (SQL/XSS) ⭐
+function containsForbiddenChars(input) {
+  if (typeof input !== 'string') return false;
+  // Cerca: apice ('), virgoletta ("), punto e virgola (;), trattini per commenti (--) e parentesi angolari (<>)
+  const forbiddenRegex = /['";\-\-<>]/; 
+  return forbiddenRegex.test(input);
+}
+
+// FUNZIONE DI SANIFICAZIONE MASSIMA (Rimuove tutto ciò che non è nella whitelist, difesa secondaria)
+function sanitizeInputText(input) {
+  if (typeof input !== 'string') return '';
+  // Permette solo lettere, numeri, spazi, trattini (-), underscore (_), virgole (,) e punti (.).
+  return input.replace(/[^a-zA-Z0-9\s\-\_.,]+/g, '').trim();
+}
+
 // Funzione helper per formattare i numeri come valuta italiana (virgola come separatore decimale)
 function formatNumber(value) {
   if (value === null || typeof value === 'undefined' || isNaN(value)) {
@@ -208,18 +223,28 @@ function renderProdotti() {
 
 async function aggiungiProdotto() {
   const input = document.getElementById("nuovo-prodotto");
-  const nome = input.value.trim();
+  const nomeRaw = input.value; // Valore grezzo
 
-  if (!nome) {
-    mostraAlert("error", "Inserisci il nome del prodotto", "prodotti");
-    return;
+  // 🔥 VALIDAZIONE PRIMARIA: Rileva caratteri proibiti
+  if (containsForbiddenChars(nomeRaw)) {
+    mostraAlert("error", "⚠️ Caratteri non validi rilevati. Rimuovi simboli come ', \", ;, <, >.", "prodotti");
+    return; // Blocca l'esecuzione
   }
 
+  // Sanificazione di sicurezza
+  const nomeSanificato = sanitizeInputText(nomeRaw); 
+
+  if (!nomeSanificato) {
+    mostraAlert("error", "Inserisci il nome del prodotto (solo lettere, numeri e spazi)", "prodotti");
+    return;
+  }
+  
+  // Usa il nome sanificato per la chiamata API
   try {
     const res = await fetch("/api/prodotti", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome }),
+      body: JSON.stringify({ nome: nomeSanificato }),
     });
 
     const data = await res.json();
@@ -249,18 +274,29 @@ function chiudiModal() {
 }
 
 async function salvaNomeProdotto() {
-  const nuovoNome = document.getElementById("modifica-nome").value.trim();
+  const nuovoNomeInput = document.getElementById("modifica-nome");
+  const nuovoNomeRaw = nuovoNomeInput.value;
 
-  if (!nuovoNome) {
-    alert("Inserisci un nome valido");
+  // 🔥 VALIDAZIONE PRIMARIA: Rileva caratteri proibiti
+  if (containsForbiddenChars(nuovoNomeRaw)) {
+    alert("⚠️ Caratteri non validi rilevati. Rimuovi simboli come ', \", ;, <, >.");
+    return; // Blocca l'esecuzione
+  }
+
+  // Sanificazione di sicurezza
+  const nuovoNomeSanificato = sanitizeInputText(nuovoNomeRaw); 
+  
+  if (!nuovoNomeSanificato) {
+    alert("Inserisci un nome valido (solo lettere, numeri e spazi)");
     return;
   }
 
+  // Usa il nome sanificato per la chiamata API
   try {
     const res = await fetch(`/api/prodotti/${prodottoInModifica}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nuovoNome }),
+      body: JSON.stringify({ nome: nuovoNomeSanificato }),
     });
 
     const data = await res.json();
@@ -428,8 +464,9 @@ async function aggiungiDato() {
   const quantita = document.getElementById("dato-quantita").value;
   
   const prezzo = document.getElementById("dato-prezzo").value;
-  const fattura_doc = document.getElementById("dato-fattura").value.trim();
-  const fornitore_cliente_id = document.getElementById("dato-fornitore").value.trim();
+  
+  const fattura_doc_raw = document.getElementById("dato-fattura").value;
+  const fornitore_cliente_id_raw = document.getElementById("dato-fornitore").value;
 
   // Validazione tipo operazione
   if (!tipo) {
@@ -462,72 +499,128 @@ async function aggiungiDato() {
       return;
     }
     
-    if (!prezzoString.includes('.') && !prezzoString.includes(',')) {
-      mostraAlert("error", "⚠️ Il prezzo deve contenere decimali (es. 10.50 o 10,50)", "dati");
-      return;
-    }
-    
     const prezzoNumerico = parseFloat(prezzoString.replace(",", "."));
     if (isNaN(prezzoNumerico) || prezzoNumerico <= 0) {
       mostraAlert("error", "⚠️ Il prezzo deve essere un numero valido maggiore di zero", "dati");
       return;
     }
     
-    // Validazione fattura
-    if (!fattura_doc || fattura_doc === "") {
-      mostraAlert("error", "⚠️ La fattura/documento è obbligatoria per il carico", "dati");
-      return;
+    // 🔥 VALIDAZIONE PRIMARIA: Fattura/Documento - BLOCCO COMANDI DB
+    if (containsForbiddenChars(fattura_doc_raw)) {
+      mostraAlert("error", "⚠️ La Fattura/Documento contiene caratteri non validi (rimuovi ', \", ;).", "dati");
+      return; // Blocca l'esecuzione
     }
     
-    // Validazione fornitore
-    if (!fornitore_cliente_id || fornitore_cliente_id === "") {
-      mostraAlert("error", "⚠️ Il fornitore/cliente è obbligatorio per il carico", "dati");
-      return;
-    }
-  }
-
-  try {
-    const res = await fetch("/api/dati", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ 
-        prodotto_id, 
-        tipo, 
-        quantita, 
-        prezzo: tipo === "carico" ? prezzo : null,
-        data_movimento,
-        fattura_doc: tipo === "carico" ? fattura_doc : null,
-        fornitore_cliente_id: tipo === "carico" ? fornitore_cliente_id : null
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-      mostraAlert("error", data.error, "dati");
-      return;
-    }
-
-    // Reset completo del form
-    const tipoSelect = document.getElementById("dato-tipo");
-    tipoSelect.value = ""; 
-    const defaultOption = tipoSelect.querySelector('option[value=""]');
-    if (defaultOption) {
-        defaultOption.selected = true;
+    // 🔥 VALIDAZIONE PRIMARIA: Fornitore/Cliente - BLOCCO COMANDI DB
+    if (containsForbiddenChars(fornitore_cliente_id_raw)) {
+      mostraAlert("error", "⚠️ Il Fornitore/Cliente contiene caratteri non validi (rimuovi ', \", ;).", "dati");
+      return; // Blocca l'esecuzione
     }
     
-    document.getElementById("dato-prodotto").value = "";
-    document.getElementById("dato-quantita").value = "";
-    document.getElementById("dato-prezzo").value = "";
-    document.getElementById("dato-fattura").value = "";
-    document.getElementById("dato-fornitore").value = "";
-    setInitialDate();
-    toggleCaricoFields();
+    // Sanificazione di sicurezza
+    const fattura_doc_sanitized = sanitizeInputText(fattura_doc_raw); 
+    const fornitore_cliente_id_sanitized = sanitizeInputText(fornitore_cliente_id_raw); 
+    
+    // Controllo finale sui campi obbligatori *dopo* la sanificazione/pulizia
+    if (!fattura_doc_sanitized) {
+      mostraAlert("error", "⚠️ La fattura/documento è obbligatoria per il carico.", "dati");
+      return;
+    }
+    if (!fornitore_cliente_id_sanitized) {
+      mostraAlert("error", "⚠️ Il fornitore/cliente è obbligatorio per il carico.", "dati");
+      return;
+    }
 
-    mostraAlert("success", "✅ Movimento registrato con successo", "dati");
-    await refreshAllData();
-  } catch (err) {
-    mostraAlert("error", "Errore durante l'aggiunta", "dati");
+    // Invio dei dati sanificati
+    try {
+        const res = await fetch("/api/dati", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                prodotto_id, 
+                tipo, 
+                quantita, 
+                prezzo: prezzo,
+                data_movimento,
+                fattura_doc: fattura_doc_sanitized,
+                fornitore_cliente_id: fornitore_cliente_id_sanitized
+            }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            mostraAlert("error", data.error, "dati");
+            return;
+        }
+
+        // Reset completo del form
+        const tipoSelect = document.getElementById("dato-tipo");
+        tipoSelect.value = ""; 
+        const defaultOption = tipoSelect.querySelector('option[value=""]');
+        if (defaultOption) {
+            defaultOption.selected = true;
+        }
+        
+        document.getElementById("dato-prodotto").value = "";
+        document.getElementById("dato-quantita").value = "";
+        document.getElementById("dato-prezzo").value = "";
+        document.getElementById("dato-fattura").value = "";
+        document.getElementById("dato-fornitore").value = "";
+        setInitialDate();
+        toggleCaricoFields();
+    
+        mostraAlert("success", "✅ Movimento registrato con successo", "dati");
+        await refreshAllData();
+        
+    } catch (err) {
+        mostraAlert("error", "Errore durante l'aggiunta", "dati");
+    }
+
+  } else if (tipo === "scarico") {
+    // Logica per lo scarico
+    try {
+        const res = await fetch("/api/dati", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ 
+                prodotto_id, 
+                tipo, 
+                quantita, 
+                prezzo: null,
+                data_movimento,
+                fattura_doc: null,
+                fornitore_cliente_id: null
+            }),
+        });
+        
+        const data = await res.json();
+        if (!res.ok) {
+            mostraAlert("error", data.error, "dati");
+            return;
+        }
+
+        // Reset completo del form
+        const tipoSelect = document.getElementById("dato-tipo");
+        tipoSelect.value = ""; 
+        const defaultOption = tipoSelect.querySelector('option[value=""]');
+        if (defaultOption) {
+            defaultOption.selected = true;
+        }
+        
+        document.getElementById("dato-prodotto").value = "";
+        document.getElementById("dato-quantita").value = "";
+        document.getElementById("dato-prezzo").value = "";
+        document.getElementById("dato-fattura").value = "";
+        document.getElementById("dato-fornitore").value = "";
+        setInitialDate();
+        toggleCaricoFields();
+    
+        mostraAlert("success", "✅ Movimento registrato con successo", "dati");
+        await refreshAllData();
+
+    } catch (err) {
+        mostraAlert("error", "Errore durante l'aggiunta", "dati");
+    }
   }
 }
 
