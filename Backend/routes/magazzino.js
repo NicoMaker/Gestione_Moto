@@ -39,7 +39,7 @@ router.get("/riepilogo", (req, res) => {
   });
 });
 
-// GET - Dettaglio Lotti per Prodotto (FIFO Order)
+// GET - Dettaglio Lotti per Prodotto (FIFO Order) - CORRETTO
 router.get("/riepilogo/:prodottoId", (req, res) => {
     const { prodottoId } = req.params;
 
@@ -49,7 +49,8 @@ router.get("/riepilogo/:prodottoId", (req, res) => {
         quantita_rimanente,
         prezzo,
         data_carico,
-        fattura_doc
+        fattura_doc,
+        fornitore_cliente_id  -- CAMPO AGGIUNTO
       FROM lotti
       WHERE prodotto_id = ? AND quantita_rimanente > 0
       ORDER BY data_carico ASC, id ASC
