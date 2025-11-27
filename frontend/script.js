@@ -359,20 +359,36 @@ async function caricaDati() {
 }
 
 // AGGIORNATO: Ora utilizza displayValue per Fattura/Doc. e Fornitore/Cli.
+// AGGIORNATO: Aggiunge il segno (+/-) e il colore alla colonna Quantità
+// AGGIORNATO: Rimuove il segno dalla Quantità, ma mantiene il colore. 
+// Colora anche la colonna Costo Totale in base al tipo di movimento.
+// AGGIORNATO: Applica colore e segno (-) a Prezzo Unitario e Costo Totale per gli Scarichi.
 function disegnaTabellaDati() {
   const tbody = document.getElementById("dati-body");
   tbody.innerHTML = dati
     .map((d) => {
       let tipoClass = d.tipo === "carico" ? "text-success" : "text-danger";
+      let quantitaDisplay = d.quantita; 
       let prezzoCol = "—";
       let costoTotaleCol = "—";
+      let costoTotaleValore = null;
+      
+      // Determina il prefisso: vuoto per carico, '-' per scarico
+      const prefix = d.tipo === "scarico" ? "-" : ""; 
 
       if (d.tipo === "carico" && d.prezzo !== null) {
+        // Carico: Prezzo senza segno, Prezzo Totale calcolato (senza segno)
         prezzoCol = `€ ${formatNumber(d.prezzo)}`;
-        costoTotaleCol = `€ ${formatNumber(d.prezzo_totale)}`;
+        costoTotaleValore = d.quantita * d.prezzo;
       } else if (d.tipo === "scarico" && d.prezzo_unitario_scarico !== null) {
-        prezzoCol = `€ ${formatNumber(d.prezzo_unitario_scarico)} (FIFO)`;
-        costoTotaleCol = `€ ${formatNumber(d.prezzo_totale)}`;
+        // Scarico: Prezzo e Prezzo Totale con segno '-'
+        prezzoCol = `${prefix} € ${formatNumber(d.prezzo_unitario_scarico)} (FIFO)`;
+        costoTotaleValore = d.prezzo_totale;
+      }
+      
+      if (costoTotaleValore !== null) {
+          // Aggiunge il prefix (che sarà '-' solo per scarico) al Costo Totale
+          costoTotaleCol = `${prefix} € ${formatNumber(costoTotaleValore)}`;
       }
 
       return `
@@ -380,9 +396,12 @@ function disegnaTabellaDati() {
         <td>${formatDate(d.data_movimento)}</td>
         <td>${d.prodotto_nome}</td>
         <td class="${tipoClass}">${d.tipo.toUpperCase()}</td>
-        <td style="text-align:right">${d.quantita}</td>
-        <td style="text-align:right">${prezzoCol}</td>
-        <td style="text-align:right">${costoTotaleCol}</td>
+        <td style="text-align:right" class="${tipoClass}">${quantitaDisplay}</td>
+        
+        <td style="text-align:right" class="${tipoClass}">${prezzoCol}</td>
+        
+        <td style="text-align:right" class="${tipoClass}">${costoTotaleCol}</td>
+        
         <td>${displayValue(d.fattura_doc)}</td>
         <td>${displayValue(d.fornitore_cliente_id)}</td>
         <td class="actions">
