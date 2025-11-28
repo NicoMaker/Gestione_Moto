@@ -110,6 +110,9 @@ function setStoricoInitialDate() {
 // =========================================================================
 
 function switchTab(tabId) {
+  // 1. Salva l'ID del tab attivo in localStorage
+  localStorage.setItem('activeTab', tabId); // <-- NUOVA RIGA
+
   // Nasconde tutte le sezioni
   document.querySelectorAll(".section").forEach((section) => {
     section.classList.remove("active");
@@ -135,7 +138,6 @@ function switchTab(tabId) {
   }
   if (tabId === "utenti") caricaUtenti();
 }
-
 async function refreshAllData() {
   await caricaProdotti(true); 
   caricaSelectProdotti(); 
@@ -961,4 +963,6 @@ document.addEventListener("DOMContentLoaded", () => {
     
     // 5. Carica tutti i dati iniziali (inizia con Prodotti attivo)
     refreshAllData(); 
+    const lastActiveTab = localStorage.getItem('activeTab') || 'prodotti'; // <-- NUOVA RIGA
+    switchTab(lastActiveTab); // <-- SOSTITUISCE refreshAllData()
 });
