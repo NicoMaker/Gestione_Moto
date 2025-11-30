@@ -994,190 +994,16 @@ async function stampaRiepilogoCompleto() {
         // Carica tutti i dati necessari
         await caricaRiepilogo(true);
         
-        // Crea una nuova finestra per la stampa
-        const printWindow = window.open('', '_blank');
+        const printContainer = document.getElementById('print-container');
         
-        if (!printWindow) {
-            mostraAlert("error", "Impossibile aprire la finestra di stampa. Verifica le impostazioni del browser.", "riepilogo");
+        if (!printContainer) {
+            mostraAlert("error", "Errore: contenitore di stampa non trovato.", "riepilogo");
             return;
         }
         
         // Prepara il contenuto HTML per la stampa
         let printContent = `
-<!DOCTYPE html>
-<html lang="it">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Riepilogo Completo Magazzino</title>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', Arial, sans-serif;
-            font-size: 12pt;
-            line-height: 1.6;
-            color: #1f2937;
-            padding: 20px;
-            background: white;
-        }
-        
-        .header {
-            text-align: center;
-            margin-bottom: 30px;
-            border-bottom: 3px solid #667eea;
-            padding-bottom: 20px;
-        }
-        
-        .header h1 {
-            font-size: 24pt;
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-        
-        .header .subtitle {
-            font-size: 14pt;
-            color: #6b7280;
-        }
-        
-        .header .data-stampa {
-            font-size: 11pt;
-            color: #9ca3af;
-            margin-top: 10px;
-        }
-        
-        .summary-box {
-            background: #f3f4f6;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 30px;
-            text-align: center;
-        }
-        
-        .summary-box .valore {
-            font-size: 20pt;
-            font-weight: bold;
-            color: #10b981;
-        }
-        
-        .prodotto-section {
-            margin-bottom: 40px;
-            page-break-inside: avoid;
-        }
-        
-        .prodotto-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 15px;
-            border-radius: 8px 8px 0 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            font-weight: bold;
-        }
-        
-        .prodotto-nome {
-            font-size: 16pt;
-        }
-        
-        .prodotto-giacenza {
-            font-size: 14pt;
-            background: rgba(255, 255, 255, 0.2);
-            padding: 5px 15px;
-            border-radius: 20px;
-        }
-        
-        .prodotto-valore {
-            font-size: 14pt;
-            background: rgba(16, 185, 129, 0.2);
-            padding: 5px 15px;
-            border-radius: 20px;
-        }
-        
-        .lotti-container {
-            border: 2px solid #667eea;
-            border-top: none;
-            border-radius: 0 0 8px 8px;
-            overflow: hidden;
-        }
-        
-        .lotti-table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-        
-        .lotti-table thead {
-            background: #e0e7ff;
-        }
-        
-        .lotti-table th {
-            padding: 12px;
-            text-align: left;
-            font-weight: 600;
-            color: #1f2937;
-            border-bottom: 2px solid #667eea;
-        }
-        
-        .lotti-table td {
-            padding: 10px 12px;
-            border-bottom: 1px solid #e5e7eb;
-        }
-        
-        .lotti-table tbody tr:last-child td {
-            border-bottom: none;
-        }
-        
-        .lotti-table tbody tr:hover {
-            background: #f9fafb;
-        }
-        
-        .text-right {
-            text-align: right;
-        }
-        
-        .text-center {
-            text-align: center;
-        }
-        
-        .no-lotti {
-            padding: 20px;
-            text-align: center;
-            color: #6b7280;
-            font-style: italic;
-            background: #f9fafb;
-        }
-        
-        .footer {
-            margin-top: 50px;
-            padding-top: 20px;
-            border-top: 2px solid #e5e7eb;
-            text-align: center;
-            color: #6b7280;
-            font-size: 10pt;
-        }
-        
-        @media print {
-            body {
-                padding: 0;
-            }
-            
-            .no-print {
-                display: none !important;
-            }
-            
-            .prodotto-section {
-                page-break-inside: avoid;
-            }
-        }
-    </style>
-</head>
-<body>
-    <div class="header">
+    <div class="print-header">
         <h1>📦 Riepilogo Completo Magazzino Moto</h1>
         <div class="subtitle">Giacenze e Dettaglio Lotti FIFO</div>
         <div class="data-stampa">Stampato il: ${new Date().toLocaleString('it-IT', {
@@ -1189,7 +1015,7 @@ async function stampaRiepilogoCompleto() {
         })}</div>
     </div>
     
-    <div class="summary-box">
+    <div class="print-summary-box">
         <div style="font-size: 14pt; margin-bottom: 10px; color: #6b7280;">
             Valore Totale Magazzino (Costo FIFO)
         </div>
@@ -1202,16 +1028,16 @@ async function stampaRiepilogoCompleto() {
         // Per ogni prodotto, aggiungi sezione prodotto + lotti
         for (const prodotto of riepilogo) {
             printContent += `
-    <div class="prodotto-section">
-        <div class="prodotto-header">
-            <span class="prodotto-nome">${prodotto.nome}</span>
-            <div style="display: flex; gap: 15px;">
-                <span class="prodotto-giacenza">Giacenza: ${prodotto.giacenza}</span>
-                <span class="prodotto-valore">Valore: € ${formatNumber(prodotto.valore_totale)}</span>
+    <div class="print-prodotto-section">
+        <div class="print-prodotto-header">
+            <span class="print-prodotto-nome">${prodotto.nome}</span>
+            <div class="print-prodotto-info">
+                <span class="print-prodotto-giacenza">Giacenza: ${prodotto.giacenza}</span>
+                <span class="print-prodotto-valore">Valore: € ${formatNumber(prodotto.valore_totale)}</span>
             </div>
         </div>
         
-        <div class="lotti-container">
+        <div class="print-lotti-container">
 `;
 
             // Se il prodotto ha giacenza > 0, carica e mostra i lotti
@@ -1227,13 +1053,13 @@ async function stampaRiepilogoCompleto() {
                     
                     if (lotti.length > 0) {
                         printContent += `
-            <table class="lotti-table">
+            <table class="print-lotti-table">
                 <thead>
                     <tr>
                         <th>Data Carico</th>
-                        <th class="text-right">Quantità Rimanente</th>
-                        <th class="text-right">Prezzo Unitario</th>
-                        <th class="text-right">Valore Lotto</th>
+                        <th style="text-align:right">Quantità Rimanente</th>
+                        <th style="text-align:right">Prezzo Unitario</th>
+                        <th style="text-align:right">Valore Lotto</th>
                         <th>Fattura/Doc.</th>
                         <th>Fornitore</th>
                     </tr>
@@ -1246,9 +1072,9 @@ async function stampaRiepilogoCompleto() {
                             printContent += `
                     <tr>
                         <td>${formatDate(lotto.data_carico)}</td>
-                        <td class="text-right">${lotto.quantita_rimanente}</td>
-                        <td class="text-right">€ ${formatNumber(lotto.prezzo)}</td>
-                        <td class="text-right">€ ${formatNumber(valoreLotto)}</td>
+                        <td style="text-align:right">${lotto.quantita_rimanente}</td>
+                        <td style="text-align:right">€ ${formatNumber(lotto.prezzo)}</td>
+                        <td style="text-align:right">€ ${formatNumber(valoreLotto)}</td>
                         <td>${displayValue(lotto.fattura_doc)}</td>
                         <td>${displayValue(lotto.fornitore_cliente_id)}</td>
                     </tr>
@@ -1261,18 +1087,18 @@ async function stampaRiepilogoCompleto() {
 `;
                     } else {
                         printContent += `
-            <div class="no-lotti">Nessun lotto disponibile</div>
+            <div class="print-no-lotti">Nessun lotto disponibile</div>
 `;
                     }
                 } catch (err) {
                     console.error("Errore caricamento lotti per prodotto", prodotto.id, err);
                     printContent += `
-            <div class="no-lotti" style="color: #ef4444;">Errore nel caricamento dei lotti</div>
+            <div class="print-no-lotti" style="color: #ef4444;">Errore nel caricamento dei lotti</div>
 `;
                 }
             } else {
                 printContent += `
-            <div class="no-lotti">Giacenza zero - Nessun lotto attivo</div>
+            <div class="print-no-lotti">Giacenza zero - Nessun lotto attivo</div>
 `;
             }
             
@@ -1282,35 +1108,26 @@ async function stampaRiepilogoCompleto() {
 `;
         }
         
-        // Aggiungi footer e chiudi HTML
+        // Aggiungi footer
         printContent += `
-    <div class="footer">
+    <div class="print-footer">
         <div>Gestione Magazzino Moto - Sistema di tracciamento FIFO</div>
         <div style="margin-top: 5px;">Documento generato automaticamente</div>
     </div>
-    
-    <script>
-        // Avvia automaticamente la stampa quando la pagina è caricata
-        window.onload = function() {
-            setTimeout(function() {
-                window.print();
-            }, 500);
-        };
-        
-        // Chiudi la finestra dopo la stampa (opzionale)
-        window.onafterprint = function() {
-            // window.close(); // Decommentare se si vuole chiudere automaticamente
-        };
-    </script>
-</body>
-</html>
 `;
         
-        // Scrivi il contenuto nella finestra di stampa
-        printWindow.document.write(printContent);
-        printWindow.document.close();
+        // Inserisci il contenuto nel container nascosto
+        printContainer.innerHTML = printContent;
         
-        mostraAlert("success", "Anteprima di stampa aperta con successo!", "riepilogo");
+        // Avvia la stampa direttamente
+        window.print();
+        
+        // Pulisci il container dopo la stampa
+        setTimeout(() => {
+            printContainer.innerHTML = '';
+        }, 1000);
+        
+        mostraAlert("success", "Dialogo di stampa avviato!", "riepilogo");
         
     } catch (err) {
         console.error("Errore durante la preparazione della stampa:", err);

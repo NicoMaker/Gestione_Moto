@@ -1,366 +1,329 @@
 <!DOCTYPE html>
 <html lang="it">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Gestione Magazzino Moto</title>
-    <link rel="stylesheet" href="styles.css" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
-      rel="stylesheet"
-    />
-  </head>
-  <body>
-    <div class="container">
-      <header>
-        <h1>Gestione Magazzino Moto</h1>
-        <div class="user-info">
-          <span id="user-display">Utente: Admin</span>
-          <button class="btn btn-secondary" onclick="logout()">Logout</button>
-        </div>
-      </header>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Gestione Magazzino Moto</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Gestione Magazzino Moto</h1>
+      <div class="user-info">
+        <span id="user-display">Utente: Admin</span>
+        <button class="btn btn-secondary" onclick="logout()">Logout</button>
+      </div>
+    </header>
 
-      <div class="tabs">
-        <button class="tab active" onclick="switchTab('prodotti')">
-          Prodotti
-        </button>
-        <button class="tab" onclick="switchTab('dati')">Carico/Scarico</button>
-        <button class="tab" onclick="switchTab('riepilogo')">Riepilogo</button>
-        <button class="tab" onclick="switchTab('storico')">Storico</button>
-        <button class="tab" onclick="switchTab('utenti')">Utenti</button>
+    <div class="tabs">
+      <button class="tab active" onclick="switchTab('prodotti')">Prodotti</button>
+      <button class="tab" onclick="switchTab('dati')">Carico/Scarico</button>
+      <button class="tab" onclick="switchTab('riepilogo')">Riepilogo</button>
+      <button class="tab" onclick="switchTab('storico')">Storico</button>
+      <button class="tab" onclick="switchTab('utenti')">Utenti</button>
+    </div>
+
+    <div class="content">
+      
+      <div id="prodotti-section" class="section active">
+        <h2>Gestione Prodotti</h2>
+        <div id="prodotti-alert"></div>
+
+        <div class="form-container">
+          <div class="form-group">
+            <label for="prodotto-nome">Nome Nuovo Prodotto</label>
+            <input type="text" id="prodotto-nome" placeholder="Es: Olio Motore 10W40" required />
+          </div>
+          <button class="btn btn-primary" onclick="aggiungiProdotto()">Aggiungi Prodotto</button>
+        </div>
+
+        <div class="table-container">
+          <table id="prodotti-table">
+            <thead>
+              <tr>
+                <th>Nome Prodotto</th>
+                <th style="text-align:right">Giacenza</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="prodotti-body">
+            </tbody>
+          </table>
+        </div>
       </div>
 
-      <div class="content">
-        <div id="prodotti-section" class="section active">
-          <h2>Gestione Prodotti</h2>
-          <div id="prodotti-alert"></div>
+      <div id="dati-section" class="section">
+        <h2>Movimenti di Magazzino</h2>
+        <div id="dati-alert"></div>
 
-          <div class="form-container">
+        <div class="form-container">
             <div class="form-group">
-              <label for="prodotto-nome">Nome Nuovo Prodotto</label>
-              <input
-                type="text"
-                id="prodotto-nome"
-                placeholder="Es: Olio Motore 10W40"
-                required
-              />
-            </div>
-            <button class="btn btn-primary" onclick="aggiungiProdotto()">
-              Aggiungi Prodotto
-            </button>
-          </div>
-
-          <div class="table-container">
-            <table id="prodotti-table">
-              <thead>
-                <tr>
-                  <th>Nome Prodotto</th>
-                  <th style="text-align: right">Giacenza</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="prodotti-body"></tbody>
-            </table>
-          </div>
-        </div>
-
-        <div id="dati-section" class="section">
-          <h2>Movimenti di Magazzino</h2>
-          <div id="dati-alert"></div>
-
-          <div class="form-container">
-            <div class="form-group">
-              <label for="dato-tipo">Tipo Movimento</label>
-              <select id="dato-tipo" required onchange="toggleCaricoFields()">
-                <option value="scarico">SCARICO (Uscita)</option>
-                <option value="carico">CARICO (Entrata)</option>
-              </select>
+                <label for="dato-tipo">Tipo Movimento</label>
+                <select
+                    id="dato-tipo"
+                    required
+                    onchange="toggleCaricoFields()"
+                >
+                    <option value="scarico">SCARICO (Uscita)</option>
+                    <option value="carico">CARICO (Entrata)</option>
+                </select>
             </div>
 
             <div class="form-group">
-              <label for="dato-prodotto">Prodotto</label>
-              <select id="dato-prodotto" required>
-                <option value="">Seleziona prodotto...</option>
-              </select>
+                <label for="dato-prodotto">Prodotto</label>
+                <select id="dato-prodotto" required>
+                    <option value="">Seleziona prodotto...</option>
+                </select>
             </div>
 
             <div class="form-group">
-              <label for="dato-data">Data Movimento</label>
-              <input type="date" id="dato-data" required />
+                <label for="dato-data">Data Movimento</label>
+                <input type="date" id="dato-data" required />
             </div>
 
             <div class="form-group">
-              <label for="dato-quantita">Quantità</label>
-              <input
-                type="number"
-                id="dato-quantita"
-                placeholder="Quantità"
-                min="1"
-                required
-              />
+                <label for="dato-quantita">Quantità</label>
+                <input
+                    type="number"
+                    id="dato-quantita"
+                    placeholder="Quantità"
+                    min="1"
+                    required
+                />
             </div>
 
             <div id="prezzo-group" class="form-group hidden">
-              <label for="dato-prezzo">Prezzo Unitario Carico (€)</label>
-              <input
-                type="text"
-                id="dato-prezzo"
-                placeholder="0,00"
-                pattern="[0-9]+([,\.][0-9]{1,2})?"
-                title="Usa la virgola o il punto per i decimali"
-                required
-              />
+                <label for="dato-prezzo">Prezzo Unitario Carico (€)</label>
+                <input
+                    type="text"
+                    id="dato-prezzo"
+                    placeholder="0,00"
+                    pattern="[0-9]+([,\.][0-9]{1,2})?"
+                    title="Usa la virgola o il punto per i decimali"
+                    required
+                />
             </div>
 
             <div id="fattura-group" class="form-group hidden">
-              <label for="dato-fattura">Fattura/Documento Carico</label>
-              <input
-                type="text"
-                id="dato-fattura"
-                placeholder="Rif. Documento"
-                required
-              />
+                <label for="dato-fattura">Fattura/Documento Carico</label>
+                <input type="text" id="dato-fattura" placeholder="Rif. Documento" required />
             </div>
 
             <div id="fornitore-group" class="form-group hidden">
-              <label for="dato-fornitore">Fornitore</label>
-              <input
-                type="text"
-                id="dato-fornitore"
-                placeholder="Nome Fornitore"
-                required
-              />
+                <label for="dato-fornitore">Fornitore</label>
+                <input type="text" id="dato-fornitore" placeholder="Nome Fornitore" required />
             </div>
             <button class="btn btn-primary" onclick="aggiungiDato()">
-              Registra Movimento
+                Registra Movimento
             </button>
-          </div>
-
-          <div class="table-container">
-            <table id="dati-table">
-              <thead>
-                <tr>
-                  <th>Data</th>
-                  <th>Prodotto</th>
-                  <th>Tipo</th>
-                  <th style="text-align: right">Quantità</th>
-                  <th style="text-align: right">Prezzo Unitario</th>
-                  <th style="text-align: right">Costo Totale</th>
-                  <th>Fattura/Doc.</th>
-                  <th>Forn./Cli.</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="dati-body"></tbody>
-            </table>
-          </div>
         </div>
 
-        <div id="riepilogo-section" class="section">
-          <h2>Riepilogo Giacenze e Valore</h2>
-          <div id="riepilogo-alert"></div>
-          <p class="summary-total">
-            Valore Totale Magazzino (Costo FIFO):
-            <strong id="valore-magazzino">€ 0,00</strong>
-          </p>
-
-          <button class="btn btn-secondary" onclick="stampaRiepilogoCompleto()">
-            Stampa Riepilogo Completo (Prodotti + Lotti)
-          </button>
-
-          <div class="table-container">
-            <table id="riepilogo-table">
-              <thead>
-                <tr>
-                  <th>Prodotto</th>
-                  <th style="text-align: right">Giacenza Totale</th>
-                  <th style="text-align: right">Valore Totale (Costo)</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="riepilogo-body"></tbody>
-            </table>
-          </div>
+        <div class="table-container">
+          <table id="dati-table">
+            <thead>
+              <tr>
+                <th>Data</th>
+                <th>Prodotto</th>
+                <th>Tipo</th>
+                <th style="text-align:right">Quantità</th>
+                <th style="text-align:right">Prezzo Unitario</th>
+                <th style="text-align:right">Costo Totale</th>
+                <th>Fattura/Doc.</th>
+                <th>Forn./Cli.</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="dati-body">
+            </tbody>
+          </table>
         </div>
+      </div>
 
-        <div id="storico-section" class="section">
-          <h2>Storico Magazzino alla Data</h2>
-          <div id="storico-alert"></div>
+      <div id="riepilogo-section" class="section">
+        <h2>Riepilogo Giacenze e Valore</h2>
+        <div id="riepilogo-alert"></div>
+        <p class="summary-total">Valore Totale Magazzino (Costo FIFO): <strong id="valore-magazzino">€ 0,00</strong></p>
 
-          <div class="form-container">
-            <div class="form-group" style="flex-grow: 1">
-              <label for="storico-data">Seleziona Data</label>
-              <input type="date" id="storico-data" required />
+        <button class="btn btn-secondary" onclick="stampaRiepilogoCompleto()">
+          📄 Stampa Riepilogo Completo (Prodotti + Lotti)
+        </button>
+
+        <div class="table-container">
+          <table id="riepilogo-table">
+            <thead>
+              <tr>
+                <th>Prodotto</th>
+                <th style="text-align:right">Giacenza Totale</th>
+                <th style="text-align:right">Valore Totale (Costo)</th>
+                <th>Azioni</th>
+              </tr>
+            </thead>
+            <tbody id="riepilogo-body">
+            </tbody>
+          </table>
+        </div>
+      </div>
+      
+      <div id="storico-section" class="section">
+        <h2>Storico Magazzino alla Data</h2>
+        <div id="storico-alert"></div>
+        
+        <div class="form-container">
+            <div class="form-group" style="flex-grow: 1;">
+                <label for="storico-data">Seleziona Data</label>
+                <input type="date" id="storico-data" required />
             </div>
             <button class="btn btn-primary" onclick="caricaStoricoGiacenza()">
-              Visualizza Storico
+                Visualizza Storico
             </button>
-          </div>
+        </div>
+        
+        <p class="summary-total">Valore Totale Magazzino alla data: <strong id="valore-magazzino-storico">€ 0,00</strong></p>
 
-          <p class="summary-total">
-            Valore Totale Magazzino alla data:
-            <strong id="valore-magazzino-storico">€ 0,00</strong>
-          </p>
-
-          <div class="table-container">
-            <table id="storico-table">
-              <thead>
-                <tr>
-                  <th>Prodotto</th>
-                  <th style="text-align: right">Giacenza Totale</th>
-                  <th style="text-align: right">Valore Totale (Costo)</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="storico-body"></tbody>
-            </table>
-          </div>
-        </div>
-        <div id="utenti-section" class="section">
-          <h2>Gestione Utenti</h2>
-          <div id="utenti-alert"></div>
-
-          <div class="form-container">
-            <div class="form-group">
-              <label for="nuovo-username">Username</label>
-              <input
-                type="text"
-                id="nuovo-username"
-                placeholder="Username"
-                required
-              />
-            </div>
-            <div class="form-group">
-              <label for="nuova-password">Password (min. 8 caratteri)</label>
-              <input
-                type="password"
-                id="nuova-password"
-                placeholder="Password"
-                required
-              />
-            </div>
-            <button class="btn btn-primary" onclick="aggiungiUtente()">
-              Crea Nuovo Utente
-            </button>
-          </div>
-
-          <div class="table-container">
-            <table id="utenti-table">
-              <thead>
-                <tr>
-                  <th>Username</th>
-                  <th>Azioni</th>
-                </tr>
-              </thead>
-              <tbody id="utenti-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <div id="modal-modifica-prodotto" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Modifica Prodotto ID: <span id="modifica-prodotto-id"></span></h3>
-        </div>
-        <div class="form-group">
-          <label for="modifica-prodotto-nome">Nome Prodotto</label>
-          <input type="text" id="modifica-prodotto-nome" />
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="chiudiModalProdotto()">
-            Annulla
-          </button>
-          <button class="btn btn-primary" onclick="salvaModificaProdotto()">
-            Salva
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div id="modal-modifica-utente" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>Modifica Utente ID: <span id="modifica-utente-id"></span></h3>
-        </div>
-        <div class="form-group">
-          <label for="modifica-username">Nuovo Username</label>
-          <input type="text" id="modifica-username" />
-        </div>
-        <div class="form-group">
-          <label for="modifica-password">Nuova Password (opzionale)</label>
-          <input
-            type="password"
-            id="modifica-password"
-            placeholder="Lascia vuoto per non cambiare (min. 8 car.)"
-          />
-        </div>
-        <div class="modal-footer">
-          <button class="btn btn-secondary" onclick="chiudiModalUtente()">
-            Annulla
-          </button>
-          <button class="btn btn-primary" onclick="salvaModificaUtente()">
-            Salva
-          </button>
-        </div>
-      </div>
-    </div>
-
-    <div id="modal-dettaglio-lotti" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 id="dettaglio-prodotto-nome">Dettaglio Lotti</h3>
-        </div>
-        <button class="btn-close" onclick="chiudiModalDettaglioLotti()">
-          ❌
-        </button>
         <div class="table-container">
-          <table id="lotti-table">
+          <table id="storico-table">
             <thead>
               <tr>
-                <th>Data Carico</th>
-                <th style="text-align: right">Quantità Rimanente</th>
-                <th style="text-align: right">Prezzo Unitario</th>
-                <th>Fattura/Doc.</th>
-                <th>Fornitore</th>
+                <th>Prodotto</th>
+                <th style="text-align:right">Giacenza Totale</th>
+                <th style="text-align:right">Valore Totale (Costo)</th>
+                <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="lotti-body"></tbody>
+            <tbody id="storico-body">
+            </tbody>
           </table>
         </div>
       </div>
-    </div>
 
-    <div id="modal-dettaglio-lotti-storico" class="modal">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3 id="dettaglio-prodotto-nome-storico">Dettaglio Lotti Storico</h3>
-          <p id="data-dettaglio-storico" style="font-weight: 600">
-            Data: --/--/----
-          </p>
+      <div id="utenti-section" class="section">
+        <h2>Gestione Utenti</h2>
+        <div id="utenti-alert"></div>
+
+        <div class="form-container">
+          <div class="form-group">
+            <label for="nuovo-username">Username</label>
+            <input type="text" id="nuovo-username" placeholder="Username" required />
+          </div>
+          <div class="form-group">
+            <label for="nuova-password">Password (min. 8 caratteri)</label>
+            <input type="password" id="nuova-password" placeholder="Password" required />
+          </div>
+          <button class="btn btn-primary" onclick="aggiungiUtente()">Crea Nuovo Utente</button>
         </div>
-        <button class="btn-close" onclick="chiudiModalDettaglioLottiStorico()">
-          ❌
-        </button>
+
         <div class="table-container">
-          <table id="lotti-table-storico">
+          <table id="utenti-table">
             <thead>
               <tr>
-                <th>Data Carico</th>
-                <th style="text-align: right">Quantità Rimanente</th>
-                <th style="text-align: right">Prezzo Unitario</th>
-                <th>Fattura/Doc.</th>
-                <th>Fornitore</th>
+                <th>Username</th>
+                <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="lotti-body-storico"></tbody>
+            <tbody id="utenti-body">
+            </tbody>
           </table>
         </div>
       </div>
+      
     </div>
-    <script src="script.js"></script>
-  </body>
+  </div>
+
+  <div id="modal-modifica-prodotto" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Modifica Prodotto ID: <span id="modifica-prodotto-id"></span></h3>
+      </div>
+      <div class="form-group">
+        <label for="modifica-prodotto-nome">Nome Prodotto</label>
+        <input type="text" id="modifica-prodotto-nome" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="chiudiModalProdotto()">Annulla</button>
+        <button class="btn btn-primary" onclick="salvaModificaProdotto()">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-modifica-utente" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3>Modifica Utente ID: <span id="modifica-utente-id"></span></h3>
+      </div>
+      <div class="form-group">
+        <label for="modifica-username">Nuovo Username</label>
+        <input type="text" id="modifica-username" />
+      </div>
+      <div class="form-group">
+        <label for="modifica-password">Nuova Password (opzionale)</label>
+        <input type="password" id="modifica-password" placeholder="Lascia vuoto per non cambiare (min. 8 car.)" />
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="chiudiModalUtente()">Annulla</button>
+        <button class="btn btn-primary" onclick="salvaModificaUtente()">Salva</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-dettaglio-lotti" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="dettaglio-prodotto-nome">Dettaglio Lotti</h3>
+      </div>
+      <button class="btn-close" onclick="chiudiModalDettaglioLotti()">✖</button>
+      <div class="table-container">
+        <table id="lotti-table">
+          <thead>
+            <tr>
+              <th>Data Carico</th>
+              <th style="text-align:right">Quantità Rimanente</th>
+              <th style="text-align:right">Prezzo Unitario</th>
+              <th>Fattura/Doc.</th>
+              <th>Fornitore</th>
+            </tr>
+          </thead>
+          <tbody id="lotti-body">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+  
+  <div id="modal-dettaglio-lotti-storico" class="modal">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h3 id="dettaglio-prodotto-nome-storico">Dettaglio Lotti Storico</h3>
+        <p id="data-dettaglio-storico" style="font-weight: 600;">Data: --/--/----</p>
+      </div>
+      <button class="btn-close" onclick="chiudiModalDettaglioLottiStorico()">✖</button>
+      <div class="table-container">
+        <table id="lotti-table-storico">
+          <thead>
+            <tr>
+              <th>Data Carico</th>
+              <th style="text-align:right">Quantità Rimanente</th>
+              <th style="text-align:right">Prezzo Unitario</th>
+              <th>Fattura/Doc.</th>
+              <th>Fornitore</th>
+            </tr>
+          </thead>
+          <tbody id="lotti-body-storico">
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ⭐ CONTENITORE PER LA STAMPA - POSIZIONATO CORRETTAMENTE ⭐ -->
+  <div id="print-container" style="display: none;"></div>
+  
+  <script src="script.js"></script>
+</body>
 </html>
