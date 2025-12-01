@@ -31,17 +31,30 @@
     </div>
 
     <div class="content">
-      
+      <!-- ====================== SEZIONE PRODOTTI ====================== -->
       <div id="prodotti-section" class="section active">
         <h2>Gestione Prodotti</h2>
+
+        <div class="summary-total">
+          📦 Prodotti totali: <strong id="total-prodotti">0</strong> |
+          🧮 Giacenza complessiva: <strong id="total-giacenza">0</strong>
+        </div>
+
         <div id="prodotti-alert"></div>
 
         <div class="form-container">
           <div class="form-group">
             <label for="prodotto-nome">Nome Nuovo Prodotto</label>
-            <input type="text" id="prodotto-nome" placeholder="Es: Olio Motore 10W40" required />
+            <input
+              type="text"
+              id="prodotto-nome"
+              placeholder="Es: Olio Motore 10W40"
+              required
+            />
           </div>
-          <button class="btn btn-primary" onclick="aggiungiProdotto()">Aggiungi Prodotto</button>
+          <button class="btn btn-primary" onclick="aggiungiProdotto()">
+            Aggiungi Prodotto
+          </button>
         </div>
 
         <div class="table-container">
@@ -53,76 +66,87 @@
                 <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="prodotti-body">
-            </tbody>
+            <tbody id="prodotti-body"></tbody>
           </table>
         </div>
       </div>
 
+      <!-- ====================== SEZIONE DATI (MOVIMENTI) ====================== -->
       <div id="dati-section" class="section">
         <h2>Movimenti di Magazzino</h2>
         <div id="dati-alert"></div>
 
         <div class="form-container">
-            <div class="form-group">
-                <label for="dato-tipo">Tipo Movimento</label>
-                <select
-                    id="dato-tipo"
-                    required
-                    onchange="toggleCaricoFields()"
-                >
-                    <option value="scarico">SCARICO (Uscita)</option>
-                    <option value="carico">CARICO (Entrata)</option>
-                </select>
-            </div>
+          <div class="form-group">
+            <label for="dato-tipo">Tipo Movimento</label>
+            <select
+              id="dato-tipo"
+              required
+              onchange="toggleCaricoFields()"
+            >
+              <option value="scarico">SCARICO (Uscita)</option>
+              <option value="carico">CARICO (Entrata)</option>
+            </select>
+          </div>
 
-            <div class="form-group">
-                <label for="dato-prodotto">Prodotto</label>
-                <select id="dato-prodotto" required>
-                    <option value="">Seleziona prodotto...</option>
-                </select>
-            </div>
+          <div class="form-group">
+            <label for="dato-prodotto">Prodotto</label>
+            <select id="dato-prodotto" required>
+              <option value="">Seleziona prodotto...</option>
+            </select>
+          </div>
 
-            <div class="form-group">
-                <label for="dato-data">Data Movimento</label>
-                <input type="date" id="dato-data" required />
-            </div>
+          <div class="form-group">
+            <label for="dato-data">Data Movimento</label>
+            <input type="date" id="dato-data" required />
+          </div>
 
-            <div class="form-group">
-                <label for="dato-quantita">Quantità</label>
-                <input
-                    type="number"
-                    id="dato-quantita"
-                    placeholder="Quantità"
-                    min="1"
-                    required
-                />
-            </div>
+          <div class="form-group">
+            <label for="dato-quantita">Quantità</label>
+            <input
+              type="number"
+              id="dato-quantita"
+              placeholder="Quantità"
+              min="1"
+              required
+            />
+          </div>
 
-            <div id="prezzo-group" class="form-group hidden">
-                <label for="dato-prezzo">Prezzo Unitario Carico (€)</label>
-                <input
-                    type="text"
-                    id="dato-prezzo"
-                    placeholder="0,00"
-                    pattern="[0-9]+([,\.][0-9]{1,2})?"
-                    title="Usa la virgola o il punto per i decimali"
-                    required
-                />
-            </div>
+          <div id="prezzo-group" class="form-group hidden">
+            <label for="dato-prezzo">Prezzo Unitario Carico (€)</label>
+            <input
+              type="text"
+              id="dato-prezzo"
+              placeholder="0,00"
+              pattern="[0-9]+([,\.][0-9]{1,2})?"
+              title="Usa la virgola o il punto per i decimali"
+              required
+            />
+          </div>
 
-            <div id="fattura-group" class="form-group hidden">
-                <label for="dato-fattura">Fattura/Documento Carico</label>
-                <input type="text" id="dato-fattura" placeholder="Rif. Documento" required />
-            </div>
+          <div id="fattura-group" class="form-group hidden">
+            <label for="dato-fattura">Fattura/Documento Carico</label>
+            <input
+              type="text"
+              id="dato-fattura"
+              placeholder="Rif. Documento"
+              required
+            />
+          </div>
 
-            <div id="fornitore-group" class="form-group hidden">
-                <label for="dato-fornitore">Fornitore</label>
-                <input type="text" id="dato-fornitore" placeholder="Nome Fornitore" required />
-            </div>
-            <button class="btn btn-primary" onclick="aggiungiDato()">
-                Registra Movimento
-            </button>
+          <div id="fornitore-group" class="form-group hidden">
+            <label for="dato-fornitore">Fornitore / Cliente</label>
+            <input
+              type="text"
+              id="dato-fornitore"
+              placeholder="Nome Fornitore o Cliente"
+              required
+            />
+          </div>
+
+          <button class="btn btn-primary" onclick="aggiungiDato()">
+            Registra Movimento
+          </button>
         </div>
 
         <div class="table-container">
@@ -140,16 +164,24 @@
                 <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="dati-body">
-            </tbody>
+            <tbody id="dati-body"></tbody>
           </table>
         </div>
       </div>
 
+      <!-- ====================== SEZIONE RIEPILOGO ====================== -->
       <div id="riepilogo-section" class="section">
         <h2>Riepilogo Giacenze e Valore</h2>
+
+        <div class="summary-total">
+          📊 Valore Totale Magazzino (FIFO):
+          <strong id="riepilogo-valore-totale">€ 0,00</strong>
+          &nbsp;|&nbsp;
+          🧮 Giacenza complessiva:
+          <strong id="riepilogo-giacenza-totale">0</strong>
+        </div>
+
         <div id="riepilogo-alert"></div>
-        <p class="summary-total">Valore Totale Magazzino (Costo FIFO): <strong id="valore-magazzino">€ 0,00</strong></p>
 
         <button class="btn btn-secondary" onclick="stampaRiepilogoCompleto()">
           📄 Stampa Riepilogo Completo (Prodotti + Lotti)
@@ -165,27 +197,37 @@
                 <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="riepilogo-body">
-            </tbody>
+            <tbody id="riepilogo-body"></tbody>
           </table>
         </div>
       </div>
-      
+
+      <!-- ====================== SEZIONE STORICO ====================== -->
       <div id="storico-section" class="section">
         <h2>Storico Magazzino alla Data</h2>
-        <div id="storico-alert"></div>
-        
-        <div class="form-container">
-            <div class="form-group" style="flex-grow: 1;">
-                <label for="storico-data">Seleziona Data</label>
-                <input type="date" id="storico-data" required />
-            </div>
-            <button class="btn btn-primary" onclick="caricaStoricoGiacenza()">
-                Visualizza Storico
-            </button>
+
+        <div class="summary-total">
+          📅 Valore Totale Magazzino
+          <strong id="storico-valore-totale">€ 0,00</strong>
+          &nbsp;|&nbsp;
+          🧮 Giacenza complessiva
+          <strong id="storico-giacenza-totale">0</strong>
         </div>
-        
-        <p class="summary-total">Valore Totale Magazzino alla data: <strong id="valore-magazzino-storico">€ 0,00</strong></p>
+
+        <div id="storico-alert"></div>
+
+        <div class="form-container">
+          <div class="form-group" style="flex-grow: 1;">
+            <label for="storico-data">Seleziona Data</label>
+            <input type="date" id="storico-data" required />
+          </div>
+          <button class="btn btn-primary" onclick="caricaStoricoGiacenza()">
+            Visualizza Storico
+          </button>
+          <button class="btn btn-secondary" onclick="stampaStorico()">
+            📄 Stampa Storico
+          </button>
+        </div>
 
         <div class="table-container">
           <table id="storico-table">
@@ -197,14 +239,19 @@
                 <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="storico-body">
-            </tbody>
+            <tbody id="storico-body"></tbody>
           </table>
         </div>
       </div>
 
+      <!-- ====================== SEZIONE UTENTI ====================== -->
       <div id="utenti-section" class="section">
         <h2>Gestione Utenti</h2>
+
+        <div class="summary-total">
+          👥 Utenti totali: <strong id="total-utenti">0</strong>
+        </div>
+
         <div id="utenti-alert"></div>
 
         <div class="form-container">
@@ -214,9 +261,16 @@
           </div>
           <div class="form-group">
             <label for="nuova-password">Password (min. 8 caratteri)</label>
-            <input type="password" id="nuova-password" placeholder="Password" required />
+            <input
+              type="password"
+              id="nuova-password"
+              placeholder="Password"
+              required
+            />
           </div>
-          <button class="btn btn-primary" onclick="aggiungiUtente()">Crea Nuovo Utente</button>
+          <button class="btn btn-primary" onclick="aggiungiUtente()">
+            Crea Nuovo Utente
+          </button>
         </div>
 
         <div class="table-container">
@@ -227,15 +281,14 @@
                 <th>Azioni</th>
               </tr>
             </thead>
-            <tbody id="utenti-body">
-            </tbody>
+            <tbody id="utenti-body"></tbody>
           </table>
         </div>
       </div>
-      
     </div>
   </div>
 
+  <!-- ====================== MODAL MODIFICA PRODOTTO ====================== -->
   <div id="modal-modifica-prodotto" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -246,12 +299,17 @@
         <input type="text" id="modifica-prodotto-nome" />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="chiudiModalProdotto()">Annulla</button>
-        <button class="btn btn-primary" onclick="salvaModificaProdotto()">Salva</button>
+        <button class="btn btn-secondary" onclick="chiudiModalProdotto()">
+          Annulla
+        </button>
+        <button class="btn btn-primary" onclick="salvaModificaProdotto()">
+          Salva
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- ====================== MODAL MODIFICA UTENTE ====================== -->
   <div id="modal-modifica-utente" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -263,15 +321,24 @@
       </div>
       <div class="form-group">
         <label for="modifica-password">Nuova Password (opzionale)</label>
-        <input type="password" id="modifica-password" placeholder="Lascia vuoto per non cambiare (min. 8 car.)" />
+        <input
+          type="password"
+          id="modifica-password"
+          placeholder="Lascia vuoto per non cambiare (min. 8 car.)"
+        />
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="chiudiModalUtente()">Annulla</button>
-        <button class="btn btn-primary" onclick="salvaModificaUtente()">Salva</button>
+        <button class="btn btn-secondary" onclick="chiudiModalUtente()">
+          Annulla
+        </button>
+        <button class="btn btn-primary" onclick="salvaModificaUtente()">
+          Salva
+        </button>
       </div>
     </div>
   </div>
 
+  <!-- ====================== MODAL DETTAGLIO LOTTI ====================== -->
   <div id="modal-dettaglio-lotti" class="modal">
     <div class="modal-content">
       <div class="modal-header">
@@ -289,18 +356,20 @@
               <th>Fornitore</th>
             </tr>
           </thead>
-          <tbody id="lotti-body">
-          </tbody>
+          <tbody id="lotti-body"></tbody>
         </table>
       </div>
     </div>
   </div>
-  
+
+  <!-- ====================== MODAL DETTAGLIO LOTTI STORICO ====================== -->
   <div id="modal-dettaglio-lotti-storico" class="modal">
     <div class="modal-content">
       <div class="modal-header">
         <h3 id="dettaglio-prodotto-nome-storico">Dettaglio Lotti Storico</h3>
-        <p id="data-dettaglio-storico" style="font-weight: 600;">Data: --/--/----</p>
+        <p id="data-dettaglio-storico" style="font-weight: 600;">
+          Data: --/--/----
+        </p>
       </div>
       <button class="btn-close" onclick="chiudiModalDettaglioLottiStorico()">✖</button>
       <div class="table-container">
@@ -314,16 +383,15 @@
               <th>Fornitore</th>
             </tr>
           </thead>
-          <tbody id="lotti-body-storico">
-          </tbody>
+          <tbody id="lotti-body-storico"></tbody>
         </table>
       </div>
     </div>
   </div>
 
-  <!-- ⭐ CONTENITORE PER LA STAMPA - POSIZIONATO CORRETTAMENTE ⭐ -->
-  <div id="print-container" style="display: none;"></div>
-  
+  <!-- IFRAME PER LA STAMPA -->
+  <iframe id="print-frame" style="display:none;"></iframe>
+
   <script src="script.js"></script>
 </body>
 </html>
