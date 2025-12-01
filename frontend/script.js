@@ -1,44 +1,41 @@
+// ================== VARIABILI GLOBALI ==================
 let prodotti = [];
 let dati = [];
 let riepilogo = [];
 let utenti = [];
-let storico = []; // NUOVA VARIABILE per i dati dello storico
+let storico = []; // dati storico per data
 
 let prodottoInModifica = null;
 let utenteInModifica = null;
-let prodottoDettaglioLotti = null; // Usato per il modale dettaglio lotti
-let prodottoDettaglioLottiStorico = null; // NUOVA VARIABILE per il modale storico
 
-// =========================================================================
-// ⭐ FUNZIONI DI SICUREZZA, FORMATTAZIONE E UTILITY ⭐
-// =========================================================================
+let prodottoDettaglioLotti = null;
+let prodottoDettaglioLottiStorico = null;
 
-// ⭐ CORREZIONE ERRORE SyntaxError: Range out of order in character class ⭐
+// ================== CONFIG ==================
+const API_BASE = "http://localhost:3000/api";
+
+// ================== UTILITY ==================
 function containsForbiddenChars(input) {
   if (typeof input !== "string") return false;
-  // Ho spostato il trattino (-) alla fine per evitare l'errore
-  const forbiddenRegex = /['";<>\\-]/; 
+  const forbiddenRegex = /['\";<>\\-]/;
   return forbiddenRegex.test(input);
 }
 
-// FUNZIONE DI SANIFICAZIONE MASSIMA 
 function sanitizeInputText(input) {
   if (typeof input !== "string") return "";
   return input.replace(/[^a-zA-Z0-9\s\-\\_.,]+/g, "").trim();
 }
 
-// Helper per formattare numeri come valuta italiana
 function formatNumber(value) {
   if (value === null || typeof value === "undefined" || isNaN(value)) {
     return "0,00";
   }
-  return value.toLocaleString("it-IT", {
+  return Number(value).toLocaleString("it-IT", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
-// Helper per formattare data da YYYY-MM-DD a GG/MM/AAAA
 function formatDate(dateString) {
   if (!dateString) return "";
   const date = new Date(dateString);
@@ -48,15 +45,14 @@ function formatDate(dateString) {
   return `${day}/${month}/${year}`;
 }
 
-// FUNZIONE AGGIUNTA/CORRETTA: Helper per visualizzare il valore (stringa) o un trattino se nullo, undefined o vuoto
 function displayValue(val) {
-    // Gestisce null, undefined, stringa vuota o stringa composta solo da spazi
-    return (val && String(val).trim() !== '') ? val : "—";
+  return val && String(val).trim() !== "" ? val : "—";
 }
 
-// Helper per mostrare alert
 function mostraAlert(type, message, section) {
   const container = document.getElementById(`${section}-alert`);
+  if (!container) return;
+
   let icon;
   let cssClass;
 
@@ -79,830 +75,893 @@ function mostraAlert(type, message, section) {
       break;
   }
 
-  container.innerHTML = `<div class="alert ${cssClass}">${icon} ${message}</div>`;
+  container.innerHTML = `<div class="${cssClass}">${icon} ${message}</div>`;
+
   setTimeout(() => {
     container.innerHTML = "";
   }, 5000);
 }
 
-// Imposta la data di oggi come default nel campo "data movimento"
-function setInitialDate() {
-  const today = new Date().toISOString().split("T")[0];
-  const dateInput = document.getElementById("dato-data");
-  if (dateInput) {
-    dateInput.value = today;
-  }
-}
-
-// Imposta la data di oggi come default nel campo "data storico"
-function setStoricoInitialDate() {
-    const today = new Date().toISOString().split("T")[0];
-    const dateInput = document.getElementById("storico-data");
-    // Imposta la data massima a oggi per coerenza
-    dateInput.max = today; 
-    if (!dateInput.value) {
-        dateInput.value = today;
-    }
-}
-
-// =========================================================================
-// 🔄 GESTIONE INTERFACCIA E REFRESH DATI 
-// =========================================================================
-
-function switchTab(tabId) {
-  // 1. Salva l'ID del tab attivo in localStorage
-  localStorage.setItem('activeTab', tabId); // <-- NUOVA RIGA
-
-  // Nasconde tutte le sezioni
-  document.querySelectorAll(".section").forEach((section) => {
-    section.classList.remove("active");
-  });
-  // Rimuove la classe 'active' da tutti i tab button
-  document.querySelectorAll(".tabs button").forEach((tab) => {
-    tab.classList.remove("active");
-  });
-
-  // Mostra la sezione selezionata e attiva il bottone
-  document.getElementById(`${tabId}-section`).classList.add("active");
+// ================== NAVIGAZIONE TABS ==================
+function switchTab(tabName) {
   document
-    .querySelector(`.tabs button[onclick="switchTab('${tabId}')"]`)
-    .classList.add("active");
+    .querySelectorAll(".section")
+    .forEach((s) => s.classList.remove("active"));
+  document
+    .querySelectorAll(".tab")
+    .forEach((t) => t.classList.remove("active"));
 
-  // Ricarica i dati specifici per il tab
-  if (tabId === "prodotti") caricaProdotti();
-  if (tabId === "dati") caricaDati();
-  if (tabId === "riepilogo") caricaRiepilogo(true); 
-  if (tabId === "storico") {
-      setStoricoInitialDate();
-      // Non carica automaticamente, attende l'input dell'utente
-  }
-  if (tabId === "utenti") caricaUtenti();
-}
-async function refreshAllData() {
-  await caricaProdotti(true); 
-  caricaSelectProdotti(); 
+  const section = document.getElementById(`${tabName}-section`);
+  if (section) section.classList.add("active");
 
-  if (document.getElementById("dati-section").classList.contains("active")) {
-    await caricaDati(); 
-  }
-  
-  await caricaRiepilogo(true); 
-  // Lo storico viene caricato solo su richiesta esplicita con la data
-}
-
-// =========================================================================
-// 🏍️ GESTIONE PRODOTTI
-// =========================================================================
-
-async function caricaProdotti(drawTable = true) {
-  try {
-    const res = await fetch("/api/prodotti");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Errore nel caricamento prodotti");
-    prodotti = data;
-    if (drawTable) {
-      disegnaTabellaProdotti();
+  // attiva tab button
+  const tabs = document.querySelectorAll(".tabs .tab");
+  tabs.forEach((btn) => {
+    if (btn.getAttribute("onclick") === `switchTab('${tabName}')`) {
+      btn.classList.add("active");
     }
+  });
+
+  // caricamenti automatici per tab
+  if (tabName === "prodotti") caricaProdotti();
+  if (tabName === "dati") caricaDati();
+  if (tabName === "riepilogo") caricaRiepilogo();
+  if (tabName === "storico") {
+    // non carico subito, aspetto data
+  }
+  if (tabName === "utenti") caricaUtenti();
+}
+
+// ================== LOGOUT ==================
+function logout() {
+  window.location.href = "index.html";
+}
+
+// ================== PRODOTTI ==================
+async function caricaProdotti() {
+  try {
+    const res = await fetch(`${API_BASE}/prodotti`);
+    if (!res.ok) throw new Error("Errore nel recupero prodotti");
+    prodotti = await res.json();
+    popolaSelectProdotti();
+    visualizzaProdotti();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore nel caricamento prodotti: " + err.message, "prodotti");
+    mostraAlert("error", "Errore nel caricamento dei prodotti", "prodotti");
   }
 }
 
-function disegnaTabellaProdotti() {
+function visualizzaProdotti() {
   const tbody = document.getElementById("prodotti-body");
-  tbody.innerHTML = prodotti
-    .map(
-      (p) => `
-      <tr>
-        <td>${p.nome}</td>
-        <td style="text-align:right">${p.giacenza}</td>
-        <td class="actions">
-          <button class="btn btn-secondary" onclick="apriModalModificaProdotto(${p.id}, '${p.nome}')">Modifica</button>
-          <button class="btn btn-danger" onclick="eliminaProdotto(${p.id}, '${p.nome}', ${p.giacenza})">Elimina</button>
-        </td>
-      </tr>
-    `
-    )
-    .join("");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let totalGiacenza = 0;
+
+  prodotti.forEach((p) => {
+    const giac = p.giacenza || 0;
+    totalGiacenza += giac;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.nome}</td>
+      <td style="text-align:right"><strong>${giac}</strong></td>
+      <td>
+        <button class="btn btn-secondary btn-small" onclick="apriModalModificaProdotto(${p.id})">✏️ Modifica</button>
+        <button class="btn btn-danger btn-small" onclick="eliminaProdotto(${p.id})">🗑️ Elimina</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  // totali
+  const totProd = document.getElementById("total-prodotti");
+  const totGiac = document.getElementById("total-giacenza");
+  if (totProd) totProd.textContent = prodotti.length;
+  if (totGiac) totGiac.textContent = totalGiacenza;
 }
 
 async function aggiungiProdotto() {
-  const nomeInput = document.getElementById("prodotto-nome");
-  const nome = nomeInput.value;
-  const nomeSanificato = sanitizeInputText(nome);
+  const input = document.getElementById("prodotto-nome");
+  if (!input) return;
+  const nomeRaw = input.value;
+  const nome = sanitizeInputText(nomeRaw);
 
-  if (!nomeSanificato) {
-    mostraAlert("error", "Il nome del prodotto è obbligatorio.", "prodotti");
-    return;
-  }
-
-  if (containsForbiddenChars(nome)) {
-    mostraAlert("error", "Caratteri non validi rilevati nel nome.", "prodotti");
+  if (!nome) {
+    mostraAlert("warning", "Inserisci un nome prodotto valido", "prodotti");
     return;
   }
 
   try {
-    const res = await fetch("/api/prodotti", {
+    const res = await fetch(`${API_BASE}/prodotti`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeSanificato }),
+      body: JSON.stringify({ nome }),
     });
 
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore aggiunta prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore creazione prodotto",
+        "prodotti"
+      );
       return;
     }
 
-    mostraAlert("success", `Prodotto "${data.nome}" aggiunto con successo!`, "prodotti");
-    nomeInput.value = "";
-    await refreshAllData();
+    mostraAlert("success", "Prodotto creato con successo", "prodotti");
+    input.value = "";
+    caricaProdotti();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'aggiunta", "prodotti");
+    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
   }
 }
 
-function apriModalModificaProdotto(id, nome) {
+function apriModalModificaProdotto(id) {
+  const prodotto = prodotti.find((p) => p.id === id);
+  if (!prodotto) return;
+
   prodottoInModifica = id;
   document.getElementById("modifica-prodotto-id").textContent = id;
-  document.getElementById("modifica-prodotto-nome").value = nome;
-  document.getElementById("modal-modifica-prodotto").style.display = "flex";
+  document.getElementById("modifica-prodotto-nome").value = prodotto.nome;
+  document.getElementById("modal-modifica-prodotto").style.display = "block";
 }
 
 function chiudiModalProdotto() {
-  document.getElementById("modal-modifica-prodotto").style.display = "none";
   prodottoInModifica = null;
+  document.getElementById("modal-modifica-prodotto").style.display = "none";
 }
 
 async function salvaModificaProdotto() {
-  const nuovoNome = document.getElementById("modifica-prodotto-nome").value;
-  const nomeSanificato = sanitizeInputText(nuovoNome);
-
-  if (!nomeSanificato) {
-    mostraAlert("error", "Il nome del prodotto è obbligatorio.", "prodotti");
-    return;
-  }
-  if (containsForbiddenChars(nuovoNome)) {
-    mostraAlert("error", "Caratteri non validi rilevati nel nome.", "prodotti");
+  if (!prodottoInModifica) return;
+  const nome = sanitizeInputText(
+    document.getElementById("modifica-prodotto-nome").value
+  );
+  if (!nome) {
+    mostraAlert("warning", "Nome prodotto non valido", "prodotti");
     return;
   }
 
   try {
-    const res = await fetch(`/api/prodotti/${prodottoInModifica}`, {
+    const res = await fetch(`${API_BASE}/prodotti/${prodottoInModifica}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome: nomeSanificato }),
+      body: JSON.stringify({ nome }),
     });
-
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore aggiornamento prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore aggiornamento prodotto",
+        "prodotti"
+      );
       return;
     }
-
-    mostraAlert("success", "Prodotto aggiornato con successo", "prodotti");
+    mostraAlert("success", "Prodotto aggiornato", "prodotti");
     chiudiModalProdotto();
-    await refreshAllData();
+    caricaProdotti();
+    caricaRiepilogo();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'aggiornamento", "prodotti");
+    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
   }
 }
 
-async function eliminaProdotto(id, nome, giacenza) {
-  if (giacenza > 0) {
-    mostraAlert("error", `Impossibile eliminare "${nome}": la giacenza è ${giacenza}.`, "prodotti");
-    return;
-  }
-  if (!confirm(`Sei sicuro di voler eliminare il prodotto "${nome}"? Saranno eliminati anche tutti i movimenti (dati) e lotti associati.`)) return;
+async function eliminaProdotto(id) {
+  if (!confirm("Eliminare il prodotto selezionato?")) return;
 
   try {
-    const res = await fetch(`/api/prodotti/${id}`, {
-      method: "DELETE",
-    });
-
+    const res = await fetch(`${API_BASE}/prodotti/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore eliminazione prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione prodotto",
+        "prodotti"
+      );
       return;
     }
-
-    mostraAlert("success", data.message || `Prodotto "${nome}" eliminato con successo.`, "prodotti");
-    await refreshAllData();
+    mostraAlert("success", data.message || "Prodotto eliminato", "prodotti");
+    caricaProdotti();
+    caricaRiepilogo();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'eliminazione", "prodotti");
+    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
   }
 }
 
-// =========================================================================
-// 🚛 GESTIONE MOVIMENTI (DATI)
-// =========================================================================
-
-function caricaSelectProdotti() {
+function popolaSelectProdotti() {
   const select = document.getElementById("dato-prodotto");
-  // Ordina i prodotti per nome per una migliore UX
-  const prodottiOrdinati = [...prodotti].sort((a, b) => a.nome.localeCompare(b.nome));
-
-  select.innerHTML =
-    '<option value="">Seleziona prodotto...</option>' +
-    prodottiOrdinati
-      .map((p) => `<option value="${p.id}">${p.nome} (Giacenza ${p.giacenza})</option>`)
-      .join("");
+  if (!select) return;
+  select.innerHTML = `<option value="">Seleziona prodotto...</option>`;
+  prodotti.forEach((p) => {
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = p.nome;
+    select.appendChild(opt);
+  });
 }
 
+// ================== MOVIMENTI (DATI) ==================
 function toggleCaricoFields() {
   const tipo = document.getElementById("dato-tipo").value;
   const prezzoGroup = document.getElementById("prezzo-group");
   const fatturaGroup = document.getElementById("fattura-group");
   const fornitoreGroup = document.getElementById("fornitore-group");
 
-  // Riferimenti agli input
-  const prezzoInput = document.getElementById("dato-prezzo");
-  const fatturaInput = document.getElementById("dato-fattura");
-  const fornitoreInput = document.getElementById("dato-fornitore");
-  
-  // Rimuove tutti i "required" di default
-  prezzoInput.required = false;
-  fatturaInput.required = false;
-  fornitoreInput.required = false;
+  const isCarico = tipo === "carico";
 
-  if (tipo === "carico") {
-    prezzoGroup.classList.remove("hidden");
-    fatturaGroup.classList.remove("hidden");
-    fornitoreGroup.classList.remove("hidden");
-    
-    // Imposta i "required" per il carico
-    prezzoInput.required = true;
-    fatturaInput.required = true;
-    fornitoreInput.required = true;
-
-  } else {
-    prezzoGroup.classList.add("hidden");
-    fatturaGroup.classList.add("hidden");
-    fornitoreGroup.classList.add("hidden");
-  }
+  [prezzoGroup, fatturaGroup, fornitoreGroup].forEach((el) => {
+    if (!el) return;
+    if (isCarico) {
+      el.classList.remove("hidden");
+    } else {
+      el.classList.add("hidden");
+    }
+  });
 }
-
 
 async function caricaDati() {
   try {
-    const res = await fetch("/api/dati");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Errore nel caricamento movimenti");
-    dati = data;
-    disegnaTabellaDati();
+    const res = await fetch(`${API_BASE}/dati`);
+    if (!res.ok) throw new Error("Errore recupero movimenti");
+    dati = await res.json();
+    visualizzaDati();
+    caricaProdotti(); // per tenere giacenze aggiornate
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore nel caricamento movimenti: " + err.message, "dati");
+    mostraAlert("error", "Errore nel caricamento dei movimenti", "dati");
   }
 }
 
-// AGGIORNATO: Ora utilizza displayValue per Fattura/Doc. e Fornitore/Cli.
-// AGGIORNATO: Aggiunge il segno (+/-) e il colore alla colonna Quantità
-// AGGIORNATO: Rimuove il segno dalla Quantità, ma mantiene il colore. 
-// Colora anche la colonna Costo Totale in base al tipo di movimento.
-// AGGIORNATO: Applica colore e segno (-) a Prezzo Unitario e Costo Totale per gli Scarichi.
-function disegnaTabellaDati() {
+function visualizzaDati() {
   const tbody = document.getElementById("dati-body");
-  tbody.innerHTML = dati
-    .map((d) => {
-      let tipoClass = d.tipo === "carico" ? "text-success" : "text-danger";
-      let quantitaDisplay = d.quantita; 
-      let prezzoCol = "—";
-      let costoTotaleCol = "—";
-      let costoTotaleValore = null;
-      
-      // Determina il prefisso: vuoto per carico, '-' per scarico
-      const prefix = d.tipo === "scarico" ? "-" : ""; 
+  if (!tbody) return;
+  tbody.innerHTML = "";
 
-      if (d.tipo === "carico" && d.prezzo !== null) {
-        // Carico: Prezzo senza segno, Prezzo Totale calcolato (senza segno)
-        prezzoCol = `€ ${formatNumber(d.prezzo)}`;
-        costoTotaleValore = d.quantita * d.prezzo;
-      } else if (d.tipo === "scarico" && d.prezzo_unitario_scarico !== null) {
-        // Scarico: Prezzo e Prezzo Totale con segno '-'
-        prezzoCol = `${prefix} € ${formatNumber(d.prezzo_unitario_scarico)} (FIFO)`;
-        costoTotaleValore = d.prezzo_totale;
-      }
-      
-      if (costoTotaleValore !== null) {
-          // Aggiunge il prefix (che sarà '-' solo per scarico) al Costo Totale
-          costoTotaleCol = `${prefix} € ${formatNumber(costoTotaleValore)}`;
-      }
+  dati.forEach((d) => {
+    const isCarico = d.tipo === "carico";
 
-      return `
-      <tr>
-        <td>${formatDate(d.data_movimento)}</td>
-        <td>${d.prodotto_nome}</td>
-        <td class="${tipoClass}">${d.tipo.toUpperCase()}</td>
-        <td style="text-align:right" class="${tipoClass}">${quantitaDisplay}</td>
-        
-        <td style="text-align:right" class="${tipoClass}">${prezzoCol}</td>
-        
-        <td style="text-align:right" class="${tipoClass}">${costoTotaleCol}</td>
-        
-        <td>${displayValue(d.fattura_doc)}</td>
-        <td>${displayValue(d.fornitore_cliente_id)}</td>
-        <td class="actions">
-          <button class="btn btn-danger btn-sm" onclick="eliminaDato(${d.id}, '${d.tipo}', '${d.prodotto_nome}', ${d.quantita})">Annulla</button>
-        </td>
-      </tr>
+    const prezzoUnit = d.prezzo_unitario_scarico
+      ? d.prezzo_unitario_scarico
+      : d.prezzo;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${formatDate(d.data_movimento)}</td>
+      <td>${d.prodotto_nome}</td>
+      <td>${isCarico ? "CARICO" : "SCARICO"}</td>
+      <td style="text-align:right">${d.quantita}</td>
+      <td style="text-align:right">${
+        prezzoUnit != null ? formatNumber(prezzoUnit) + " €" : "—"
+      }</td>
+      <td style="text-align:right">${
+        d.prezzo_totale != null ? formatNumber(d.prezzo_totale) + " €" : "—"
+      }</td>
+      <td>${displayValue(d.fattura_doc)}</td>
+      <td>${displayValue(d.fornitore_cliente_id)}</td>
+      <td>
+        <button class="btn btn-danger btn-small" onclick="eliminaDato(${
+          d.id
+        })">🗑️ Elimina</button>
+      </td>
     `;
-    })
-    .join("");
+    tbody.appendChild(tr);
+  });
 }
 
 async function aggiungiDato() {
-  const prodottoId = document.getElementById("dato-prodotto").value;
   const tipo = document.getElementById("dato-tipo").value;
-  const dataMovimento = document.getElementById("dato-data").value;
-  const quantitaRaw = document.getElementById("dato-quantita").value;
-  const prezzoRaw = document.getElementById("dato-prezzo").value;
-  const fatturaDocRaw = document.getElementById("dato-fattura").value;
-  const fornitoreClienteIdRaw = document.getElementById("dato-fornitore").value;
+  const prodottoId = document.getElementById("dato-prodotto").value;
+  const dataMov = document.getElementById("dato-data").value;
+  const quantita = Number(document.getElementById("dato-quantita").value);
+  let prezzo = document.getElementById("dato-prezzo").value;
+  const fattura = document.getElementById("dato-fattura").value;
+  const fornitore = document.getElementById("dato-fornitore").value;
 
-  // 1. VALIDAZIONE DI BASE (Obbligatori per tutti i movimenti)
-  if (!prodottoId) {
-    mostraAlert("error", "Seleziona un Prodotto", "dati");
+  if (!prodottoId || !dataMov || !quantita || quantita <= 0) {
+    mostraAlert("warning", "Compila tutti i campi obbligatori", "dati");
     return;
   }
-  if (!tipo) {
-    mostraAlert("error", "Seleziona il Tipo di operazione (Carico/Scarico)", "dati");
-    return;
-  }
-  if (!dataMovimento) {
-    mostraAlert("error", "Inserisci la Data del movimento (YYYY-MM-DD)", "dati");
-    return;
-  }
-
-  const quantita = parseInt(quantitaRaw);
-  if (isNaN(quantita) || quantita <= 0) {
-    mostraAlert("error", "La Quantità deve essere un numero intero positivo.", "dati");
-    return;
-  }
-
-  // 2. VALIDAZIONE E DATI SPECIFICI PER CARICO
-  let prezzoSanificato = null;
-  let fatturaDoc = null;
-  let fornitoreClienteId = null;
 
   if (tipo === "carico") {
-    // Conversione prezzo: accetta virgola o punto decimale
-    const prezzoString = String(prezzoRaw).replace(",", ".");
-    prezzoSanificato = parseFloat(prezzoString);
-
-    if (isNaN(prezzoSanificato) || prezzoSanificato <= 0) {
-      mostraAlert("error", "Per il Carico, Prezzo Unitario è obbligatorio e deve essere > 0.", "dati");
+    prezzo = String(prezzo).replace(",", ".");
+    const prc = parseFloat(prezzo);
+    if (!prc || prc <= 0) {
+      mostraAlert("warning", "Prezzo unitario carico non valido", "dati");
       return;
     }
-
-    fatturaDoc = sanitizeInputText(fatturaDocRaw);
-    fornitoreClienteId = sanitizeInputText(fornitoreClienteIdRaw);
-
-    if (!fatturaDoc) {
-      mostraAlert("error", "Per il Carico, il campo Fattura/Documento è obbligatorio.", "dati");
-      return;
-    }
-    if (!fornitoreClienteId) {
-      mostraAlert("error", "Per il Carico, il campo Fornitore è obbligatorio.", "dati");
-      return;
-    }
+    prezzo = prc;
+  } else {
+    prezzo = null;
   }
 
-  // 3. COSTRUZIONE DEL BODY E INVIO
-  const bodyData = {
-    // I nomi delle chiavi devono corrispondere al backend (dati.js)
-    prodotto_id: prodottoId,
-    tipo: tipo,
-    quantita: quantita,
-    data_movimento: dataMovimento,
-
-    // Campi aggiuntivi (solo per Carico sono usati)
-    prezzo: prezzoSanificato, // Sarà null per scarico
-    fattura_doc: fatturaDoc || sanitizeInputText(fatturaDocRaw), 
-    fornitore_cliente_id: fornitoreClienteId || sanitizeInputText(fornitoreClienteIdRaw), 
-  };
-
   try {
-    const res = await fetch("/api/dati", {
+    const res = await fetch(`${API_BASE}/dati`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(bodyData),
+      body: JSON.stringify({
+        prodotto_id: Number(prodottoId),
+        tipo,
+        quantita,
+        prezzo,
+        data_movimento: dataMov,
+        fattura_doc: sanitizeInputText(fattura),
+        fornitore_cliente_id: sanitizeInputText(fornitore),
+      }),
     });
 
     const data = await res.json();
     if (!res.ok) {
-      // Questo gestisce l'errore del backend (come quello che avevi)
-      mostraAlert("error", data.error || `Errore durante l'aggiunta del movimento (${tipo})`, "dati");
+      mostraAlert(
+        "error",
+        data.error || "Errore registrazione movimento",
+        "dati"
+      );
       return;
     }
 
-    // Pulizia Form e Ricarica Dati
-    document.getElementById("dato-tipo").value = "scarico"; // Reset a scarico di default
-    document.getElementById("dato-prodotto").value = "";
+    mostraAlert("success", "Movimento registrato", "dati");
+
+    // pulizia campi (lascio tipo e prodotto)
     document.getElementById("dato-quantita").value = "";
     document.getElementById("dato-prezzo").value = "";
     document.getElementById("dato-fattura").value = "";
     document.getElementById("dato-fornitore").value = "";
-    setInitialDate();
-    toggleCaricoFields();
-    mostraAlert("success", `Movimento di ${tipo.toUpperCase()} registrato con successo`, "dati");
-    await refreshAllData(); 
+
+    caricaDati();
+    caricaRiepilogo();
   } catch (err) {
-    console.error("Errore durante l'aggiunta", err);
-    mostraAlert("error", "Errore di rete durante l'aggiunta", "dati");
+    console.error(err);
+    mostraAlert("error", "Errore di comunicazione col server", "dati");
   }
 }
 
-async function eliminaDato(id, tipo, nomeProdotto, quantita) {
-  const azione = tipo === 'carico' ? 'annullare il carico' : 'annullare lo scarico';
-  const messaggio = tipo === 'carico' 
-    ? `Sei sicuro di voler ${azione} del prodotto "${nomeProdotto}" (Qtà: ${quantita})? Questo è possibile solo se il lotto non è stato scaricato.`
-    : `Sei sicuro di voler ${azione} del prodotto "${nomeProdotto}" (Qtà: ${quantita})? Questo ripristinerà la merce nei lotti originali (logica inversa FIFO).`;
-
-  if (!confirm(messaggio)) return;
+async function eliminaDato(id) {
+  if (!confirm("Eliminare il movimento selezionato?")) return;
 
   try {
-    const res = await fetch(`/api/dati/${id}`, {
-      method: "DELETE",
-    });
-
+    const res = await fetch(`${API_BASE}/dati/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || `Errore durante l'annullamento del ${tipo}`, "dati");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione movimento",
+        "dati"
+      );
       return;
     }
-
-    mostraAlert("success", data.message || `${tipo.toUpperCase()} annullato con successo.`, "dati");
-    await refreshAllData(); 
+    mostraAlert("success", data.message || "Movimento eliminato", "dati");
+    caricaDati();
+    caricaRiepilogo();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'annullamento", "dati");
+    mostraAlert("error", "Errore di comunicazione col server", "dati");
   }
 }
 
-// =========================================================================
-// 📊 GESTIONE RIEPILOGO
-// =========================================================================
-
-async function caricaRiepilogo(drawTable = false) {
+// ================== RIEPILOGO MAGAZZINO CORRENTE ==================
+async function caricaRiepilogo() {
   try {
-    const res = await fetch("/api/riepilogo");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Errore nel caricamento riepilogo");
-    riepilogo = data;
-    // Disegna la tabella solo se il tab è attivo o se drawTable è forzato da refreshAllData()
-    if (document.getElementById("riepilogo-section").classList.contains("active") || drawTable) {
-      disegnaTabellaRiepilogo();
-    }
-    await caricaValoreMagazzino();
+    const res = await fetch(`${API_BASE}/riepilogo`);
+    if (!res.ok) throw new Error("Errore recupero riepilogo");
+    riepilogo = await res.json();
+    visualizzaRiepilogo();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore nel caricamento riepilogo: " + err.message, "riepilogo");
+    mostraAlert("error", "Errore nel caricamento del riepilogo", "riepilogo");
   }
 }
 
-async function caricaValoreMagazzino() {
-    try {
-        const res = await fetch("/api/valore-magazzino");
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Errore nel calcolo valore");
-        
-        document.getElementById("valore-magazzino").textContent = `€ ${formatNumber(data.valore_totale)}`;
-    } catch (err) {
-        document.getElementById("valore-magazzino").textContent = "Errore";
+async function apriDettaglioLotti(prodottoId, nomeProdotto) {
+  try {
+    const res = await fetch(`${API_BASE}/riepilogo/${prodottoId}`);
+    if (!res.ok) throw new Error("Errore recupero lotti");
+    const lotti = await res.json();
+
+    const titolo = document.getElementById("dettaglio-prodotto-nome");
+    const tbody = document.getElementById("lotti-body");
+
+    if (titolo) titolo.textContent = `Dettaglio Lotti - ${nomeProdotto}`;
+    if (tbody) {
+      tbody.innerHTML = "";
+      lotti.forEach((lotto) => {
+        const tr = document.createElement("tr");
+        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
+
+        tr.innerHTML = `
+        <td>${formatDate(lotto.data_carico)}</td>
+        <td style="text-align:right">${lotto.quantita_rimanente}</td>
+        <td style="text-align:right">${formatNumber(lotto.prezzo)}</td>
+        <td style="text-align:right">${formatNumber(valoreLotto)}</td>
+        <td>${displayValue(lotto.fattura_doc)}</td>
+        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
+    `;
+        tbody.appendChild(tr);
+      });
     }
-}
 
-
-function disegnaTabellaRiepilogo() {
-  const tbody = document.getElementById("riepilogo-body");
-  tbody.innerHTML = riepilogo
-    .map(
-      (r) => `
-      <tr>
-        <td>${r.nome}</td>
-        <td style="text-align:right">${r.giacenza}</td>
-        <td style="text-align:right" class="text-success">€ ${formatNumber(r.valore_totale)}</td>
-        <td class="actions">
-          ${r.giacenza > 0 ? `<button class="btn btn-secondary btn-sm" onclick="apriModalDettaglioLotti(${r.id}, '${r.nome}')">Dettaglio Lotti</button>` : "—"}
-        </td>
-      </tr>
-    `
-    )
-    .join("");
-}
-
-function apriModalDettaglioLotti(prodottoId, nomeProdotto) {
-  prodottoDettaglioLotti = prodottoId;
-  document.getElementById("dettaglio-prodotto-nome").textContent = `Dettaglio Lotti: ${nomeProdotto}`;
-  caricaDettaglioLotti(prodottoId);
-  document.getElementById("modal-dettaglio-lotti").style.display = "flex";
+    document.getElementById("modal-dettaglio-lotti").style.display = "block";
+  } catch (err) {
+    console.error(err);
+    mostraAlert("error", "Errore nel caricamento dei lotti", "riepilogo");
+  }
 }
 
 function chiudiModalDettaglioLotti() {
   document.getElementById("modal-dettaglio-lotti").style.display = "none";
-  document.getElementById("lotti-body").innerHTML = ""; // Pulisce i dati alal chiusura
-  prodottoDettaglioLotti = null;
 }
 
-async function caricaDettaglioLotti(prodottoId) {
-    const tbody = document.getElementById("lotti-body");
-    // colspan a 5 (Data, Q.tà, Prezzo, Fattura, Fornitore)
-    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Caricamento lotti...</td></tr>';
-    
-    try {
-        const res = await fetch(`/api/riepilogo/${prodottoId}`);
-        const lotti = await res.json();
-        
-        if (!res.ok) throw new Error(lotti.error || "Errore nel caricamento dei lotti");
-
-        if (lotti.length === 0) {
-            // colspan a 5
-            tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Nessun lotto attivo (Giacenza zero).</td></tr>';
-            return;
-        }
-
-        tbody.innerHTML = lotti
-            .map(l => `
-                <tr>
-                    <td>${formatDate(l.data_carico)}</td>
-                    <td style="text-align:right">${l.quantita_rimanente}</td>
-                    <td style="text-align:right">€ ${formatNumber(l.prezzo)}</td>
-                    <td>${displayValue(l.fattura_doc)}</td>
-                    <td>${displayValue(l.fornitore_cliente_id)}</td>
-                </tr>
-            `)
-            .join('');
-
-    } catch (err) {
-        console.error(err);
-        // colspan a 5
-        tbody.innerHTML = `<tr><td colspan="5" style="text-align:center" class="text-danger">Errore: ${err.message}</td></tr>`;
-    }
-}
-
-
-// =========================================================================
-// 🏛️ NUOVA SEZIONE: GESTIONE STORICO
-// =========================================================================
-
-async function caricaStoricoGiacenza() {
-    const historicalDate = document.getElementById("storico-data").value;
-    
-    if (!historicalDate) {
-        mostraAlert("warning", "Seleziona una data per visualizzare lo storico.", "storico");
-        return;
-    }
-
-    document.getElementById("storico-body").innerHTML = '<tr><td colspan="4" style="text-align:center">Caricamento storico...</td></tr>';
-    document.getElementById("valore-magazzino-storico").textContent = "€ 0,00";
-    
-    try {
-        const res = await fetch(`/api/storico-giacenza/${historicalDate}`);
-        const data = await res.json();
-        
-        if (!res.ok) throw new Error(data.error || "Errore nel caricamento storico");
-        
-        // Riepilogo dallo storico
-        storico = data.riepilogo;
-
-        // 🔤 Ordina alfabeticamente per nome prodotto (case-insensitive, con locale italiano)
-        storico.sort((a, b) =>
-            (a.nome || "").localeCompare(b.nome || "", "it", { sensitivity: "base" })
-        );
-
-        // Disegna tabella con dati ordinati
-        disegnaTabellaStorico(historicalDate);
-        document.getElementById("valore-magazzino-storico").textContent = `€ ${formatNumber(data.valore_totale)}`;
-        
-        if (storico.length > 0) {
-            mostraAlert(
-                "success",
-                `Storico magazzino calcolato con successo per il ${formatDate(historicalDate)}.`,
-                "storico"
-            );
-        } else {
-            mostraAlert(
-                "info",
-                `Nessun prodotto con giacenza a questa data (${formatDate(historicalDate)}).`,
-                "storico"
-            );
-        }
-        
-    } catch (err) {
-        console.error(err);
-        document.getElementById("storico-body").innerHTML =
-            '<tr><td colspan="4" style="text-align:center" class="text-danger">Errore nel calcolo storico: ' +
-            err.message +
-            "</td></tr>";
-        mostraAlert("error", "Errore nel caricamento storico: " + err.message, "storico");
-    }
-}
-
-
-
-function disegnaTabellaStorico(historicalDate) {
-  const tbody = document.getElementById("storico-body");
-  
-  if (storico.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center">Nessun prodotto con giacenza a questa data.</td></tr>';
+// stampa riepilogo completo prodotti + lotti
+async function stampaRiepilogoCompleto() {
+  if (!riepilogo || riepilogo.length === 0) {
+    mostraAlert("warning", "Nessun dato di riepilogo da stampare", "riepilogo");
     return;
   }
 
-  tbody.innerHTML = storico
-    .map(
-      (r) => `
-      <tr>
-        <td>${r.nome}</td>
-        <td style="text-align:right">${r.giacenza}</td>
-        <td style="text-align:right" class="text-success">€ ${formatNumber(r.valore_totale)}</td>
-        <td class="actions">
-          ${r.giacenza > 0 
-            ? `<button class="btn btn-secondary btn-sm" onclick="apriModalDettaglioLottiStorico(${r.id}, '${r.nome}', '${historicalDate}')">Dettaglio Lotti</button>` 
-            : "—"
-          }
-        </td>
+  // per ogni prodotto, recupero i lotti
+  const righeHTML = [];
+  for (const r of riepilogo) {
+    try {
+      const res = await fetch(`${API_BASE}/riepilogo/${r.id}`);
+      const lotti = res.ok ? await res.json() : [];
+      righeHTML.push({ prodotto: r, lotti });
+    } catch {
+      righeHTML.push({ prodotto: r, lotti: [] });
+    }
+  }
+
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8" />
+      <title>Riepilogo Magazzino</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; }
+        .total { margin: 15px 0; font-size: 16px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+        th { background: #6366f1; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .prodotto-row { background:#e5e7eb;font-weight:bold; }
+        .price { text-align:right; min-width:80px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>Riepilogo Magazzino (Prodotti + Lotti)</h1>
+        <p>Data stampa: ${new Date().toLocaleString("it-IT")}</p>
+      </div>
+      <div class="total">
+        Valore totale magazzino: ${
+          document.getElementById("riepilogo-valore-totale")?.textContent ||
+          "€ 0,00"
+        }<br/>
+        Giacenza complessiva: ${
+          document.getElementById("riepilogo-giacenza-totale")?.textContent ||
+          "0"
+        }
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Prodotto</th>
+            <th>Giacenza Totale</th>
+            <th>Valore Totale</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  righeHTML.forEach(({ prodotto, lotti }) => {
+    html += `
+      <tr class="prodotto-row">
+        <td>${prodotto.nome}</td>
+        <td>${prodotto.giacenza}</td>
+        <td class="price">€ ${formatNumber(prodotto.valore_totale)}</td>
       </tr>
-    `
-    )
-    .join("");
-}
+    `;
 
-function apriModalDettaglioLottiStorico(prodottoId, nomeProdotto, historicalDate) {
-    prodottoDettaglioLottiStorico = prodottoId;
-    
-    // Trova i dati del prodotto nell'array 'storico' (già calcolati dal backend)
-    const prodottoStorico = storico.find(p => p.id === prodottoId);
-    
-    if (!prodottoStorico || prodottoStorico.giacenza === 0) {
-        mostraAlert("warning", "Nessun lotto attivo per questo prodotto alla data selezionata.", "storico");
-        return;
+    if (lotti && lotti.length > 0) {
+      html += `
+        <tr>
+          <td colspan="3">
+            <table style="width:100%;border-collapse:collapse;margin-top:5px;">
+              <thead>
+                <tr>
+                  <th>Data Carico</th>
+                  <th>Quantità Rimanente</th>
+                  <th>Prezzo Unitario</th>
+                  <th>Valore Lotto</th>
+                  <th>Fattura/Doc.</th>
+                  <th>Fornitore</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+      lotti.forEach((lotto) => {
+        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
+        html += `
+          <tr>
+            <td>${formatDate(lotto.data_carico)}</td>
+            <td>${lotto.quantita_rimanente}</td>
+            <td class="price">€ ${formatNumber(lotto.prezzo)}</td>
+            <td class="price">€ ${formatNumber(valoreLotto)}</td>
+            <td>${displayValue(lotto.fattura_doc)}</td>
+            <td>${displayValue(lotto.fornitore_cliente_id)}</td>
+          </tr>
+        `;
+      });
+      html += `
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      `;
     }
+  });
 
-    document.getElementById("dettaglio-prodotto-nome-storico").textContent = `Dettaglio Lotti: ${nomeProdotto}`;
-    document.getElementById("data-dettaglio-storico").textContent = `Data: ${formatDate(historicalDate)}`;
-    
-    // Usa i lotti_storici già presenti nell'oggetto prodottoStorico
-    disegnaTabellaLottiStorico(prodottoStorico.lotti_storici);
-    
-    document.getElementById("modal-dettaglio-lotti-storico").style.display = "flex";
+  html += `
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const frame = document.getElementById("print-frame");
+  frame.srcdoc = html;
+  setTimeout(() => frame.contentWindow.print(), 400);
 }
 
+// ================== STORICO MAGAZZINO ==================
+async function caricaStoricoGiacenza() {
+  const data = document.getElementById("storico-data").value;
+  if (!data) {
+    mostraAlert("warning", "Seleziona una data", "storico");
+    return;
+  }
 
-function chiudiModalDettaglioLottiStorico() {
-  document.getElementById("modal-dettaglio-lotti-storico").style.display = "none";
-  document.getElementById("lotti-body-storico").innerHTML = ""; 
-  prodottoDettaglioLottiStorico = null;
-}
-
-// Funzione dedicata per disegnare la tabella dei lotti storici
-function disegnaTabellaLottiStorico(lotti) {
-    const tbody = document.getElementById("lotti-body-storico");
-    
-    if (lotti.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center">Nessun lotto attivo (Giacenza zero).</td></tr>';
-        return;
-    }
-
-    tbody.innerHTML = lotti
-        .map(l => `
-            <tr>
-                <td>${formatDate(l.data_carico)}</td>
-                <td style="text-align:right">${l.quantita_rimanente}</td>
-                <td style="text-align:right">€ ${formatNumber(l.prezzo)}</td>
-                <td>${displayValue(l.fattura_doc)}</td>
-                <td>${displayValue(l.fornitore_cliente_id)}</td>
-            </tr>
-        `)
-        .join('');
-}
-
-// =========================================================================
-// 👥 GESTIONE UTENTI
-// =========================================================================
-
-async function caricaUtenti() {
   try {
-    const res = await fetch("/api/utenti");
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.error || "Errore nel caricamento utenti");
-    utenti = data;
-    disegnaTabellaUtenti();
+    const res = await fetch(`${API_BASE}/storico-giacenza/${data}`);
+    if (!res.ok) throw new Error("Errore recupero storico");
+    const result = await res.json();
+    storico = result.riepilogo || [];
+    visualizzaStorico(result.valore_totale || 0);
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore nel caricamento utenti: " + err.message, "utenti");
+    mostraAlert("error", "Errore nel caricamento dello storico", "storico");
   }
 }
 
-function disegnaTabellaUtenti() {
-  const tbody = document.getElementById("utenti-body");
-  tbody.innerHTML = utenti
-    .map(
-      (u) => `
-      <tr>
-        <td>${u.username}</td>
-        <td class="actions">
-          <button class="btn btn-secondary" onclick="apriModalModificaUtente(${u.id}, '${u.username}')">Modifica</button>
-          ${
-            utenti.length > 1 // Non permette l'eliminazione se è l'unico utente
-              ? `<button class="btn btn-danger" onclick="eliminaUtente(${u.id}, '${u.username}')">Elimina</button>`
-              : '<button class="btn btn-danger" disabled title="Impossibile eliminare l\'unico utente">Elimina</button>'
-          }
-        </td>
+function visualizzaStorico(valoreTotale) {
+  const tbody = document.getElementById("storico-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let giacenzaTotale = 0;
+
+  storico.forEach((s) => {
+    const giac = s.giacenza || 0;
+    giacenzaTotale += giac;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${s.nome}</td>
+      <td style="text-align:right"><strong>${giac}</strong></td>
+      <td style="text-align:right"><strong>${formatNumber(
+        s.valore_totale
+      )} €</strong></td>
+      <td>
+        <button class="btn btn-secondary btn-small" onclick="apriDettaglioLottiStorico(${
+          s.id
+        }, '${s.nome}')">👁️ Dettagli Lotti</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const valElem = document.getElementById("storico-valore-totale");
+  const giacElem = document.getElementById("storico-giacenza-totale");
+  const valLegacy = document.getElementById("valore-magazzino-storico");
+
+  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
+  if (giacElem) giacElem.textContent = giacenzaTotale;
+  if (valLegacy) valLegacy.textContent = `€ ${formatNumber(valoreTotale)}`;
+}
+
+async function apriDettaglioLottiStorico(prodottoId, nomeProdotto) {
+  const data = document.getElementById("storico-data").value;
+  if (!data) return;
+
+  const prodotto = storico.find((s) => s.id === prodottoId);
+  if (!prodotto) return;
+
+  const titolo = document.getElementById("dettaglio-prodotto-nome-storico");
+  const dataLabel = document.getElementById("data-dettaglio-storico");
+  const tbody = document.getElementById("lotti-body-storico");
+
+  if (titolo) titolo.textContent = `Dettaglio Lotti Storico - ${nomeProdotto}`;
+  if (dataLabel) dataLabel.textContent = `Data: ${formatDate(data)}`;
+
+  if (tbody) {
+    tbody.innerHTML = "";
+    (prodotto.lotti_storici || []).forEach((lotto) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td>${formatDate(lotto.data_carico)}</td>
+        <td style="text-align:right">${lotto.quantita_rimanente}</td>
+        <td style="text-align:right">${formatNumber(lotto.prezzo)} €</td>
+        <td>${displayValue(lotto.fattura_doc)}</td>
+        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
+      `;
+      tbody.appendChild(tr);
+    });
+  }
+
+  document.getElementById("modal-dettaglio-lotti-storico").style.display =
+    "block";
+}
+
+function chiudiModalDettaglioLottiStorico() {
+  document.getElementById("modal-dettaglio-lotti-storico").style.display =
+    "none";
+}
+
+// stampa storico con totali in alto e dettaglio per prodotto + lotti
+function stampaStorico() {
+  if (!storico || storico.length === 0) {
+    mostraAlert(
+      "warning",
+      "Carica i dati dello storico prima di stampare",
+      "storico"
+    );
+    return;
+  }
+
+  const data = document.getElementById("storico-data").value;
+  const valoreTotaleText =
+    document.getElementById("storico-valore-totale")?.textContent || "€ 0,00";
+  const giacenzaTotaleText =
+    document.getElementById("storico-giacenza-totale")?.textContent || "0";
+
+  let html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8" />
+      <title>Storico Magazzino ${data}</title>
+      <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .header { text-align: center; margin-bottom: 20px; }
+        .header h1 { margin: 0; }
+        .total { margin: 15px 0; font-size: 16px; font-weight: bold; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
+        th { background: #6366f1; color: white; }
+        tr:nth-child(even) { background: #f9f9f9; }
+        .prodotto-row { background:#e5e7eb;font-weight:bold; }
+        .price { text-align:right; min-width:80px; }
+      </style>
+    </head>
+    <body>
+      <div class="header">
+        <h1>📅 Storico Magazzino</h1>
+        <p>Data: ${formatDate(data)}</p>
+      </div>
+      <div class="total">
+        💰 Valore Totale Magazzino: <strong>${valoreTotaleText}</strong><br/>
+        🧮 Giacenza complessiva: <strong>${giacenzaTotaleText}</strong>
+      </div>
+      <table>
+        <thead>
+          <tr>
+            <th>Prodotto</th>
+            <th>Giacenza Totale</th>
+            <th>Valore Totale (Costo)</th>
+          </tr>
+        </thead>
+        <tbody>
+  `;
+
+  storico.forEach((s) => {
+    html += `
+      <tr class="prodotto-row">
+        <td>${s.nome}</td>
+        <td>${s.giacenza}</td>
+        <td class="price">€ ${formatNumber(s.valore_totale)}</td>
       </tr>
-    `
-    )
-    .join("");
+    `;
+
+    if (s.lotti_storici && s.lotti_storici.length > 0) {
+      html += `
+        <tr>
+          <td colspan="3">
+            <table style="width:100%;border-collapse:collapse;margin-top:5px;">
+              <thead>
+                <tr>
+                  <th>Data Carico</th>
+                  <th>Quantità Rimanente</th>
+                  <th>Prezzo Unitario</th>
+                  <th>Valore Lotto</th>
+                  <th>Fattura/Doc.</th>
+                  <th>Fornitore</th>
+                </tr>
+              </thead>
+              <tbody>
+      `;
+      s.lotti_storici.forEach((lotto) => {
+        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
+        html += `
+          <tr>
+            <td>${formatDate(lotto.data_carico)}</td>
+            <td>${lotto.quantita_rimanente}</td>
+            <td class="price">€ ${formatNumber(lotto.prezzo)}</td>
+            <td class="price">€ ${formatNumber(valoreLotto)}</td>
+            <td>${displayValue(lotto.fattura_doc)}</td>
+            <td>${displayValue(lotto.fornitore_cliente_id)}</td>
+          </tr>
+        `;
+      });
+      html += `
+              </tbody>
+            </table>
+          </td>
+        </tr>
+      `;
+    }
+  });
+
+  html += `
+        </tbody>
+      </table>
+    </body>
+    </html>
+  `;
+
+  const frame = document.getElementById("print-frame");
+  frame.srcdoc = html;
+  setTimeout(() => frame.contentWindow.print(), 400);
+}
+
+// ================== UTENTI ==================
+async function caricaUtenti() {
+  try {
+    const res = await fetch(`${API_BASE}/utenti`);
+    if (!res.ok) throw new Error("Errore recupero utenti");
+    utenti = await res.json();
+    visualizzaUtenti();
+  } catch (err) {
+    console.error(err);
+    mostraAlert("error", "Errore nel caricamento utenti", "utenti");
+  }
+}
+
+function visualizzaUtenti() {
+  const tbody = document.getElementById("utenti-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  utenti.forEach((u) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${u.username}</td>
+      <td>
+        <button class="btn btn-secondary btn-small" onclick="apriModalModificaUtente(${u.id})">✏️ Modifica</button>
+        <button class="btn btn-danger btn-small" onclick="eliminaUtente(${u.id})">🗑️ Elimina</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const tot = document.getElementById("total-utenti");
+  if (tot) tot.textContent = utenti.length;
 }
 
 async function aggiungiUtente() {
-  const username = document.getElementById("nuovo-username").value;
+  const usernameRaw = document.getElementById("nuovo-username").value;
   const password = document.getElementById("nuova-password").value;
-  const usernameSanificato = sanitizeInputText(username);
 
-  if (!usernameSanificato || !password) {
-    mostraAlert("error", "Username e Password sono obbligatori.", "utenti");
+  const username = sanitizeInputText(usernameRaw);
+
+  if (!username || !password) {
+    mostraAlert("warning", "Inserisci username e password", "utenti");
     return;
   }
-  if (containsForbiddenChars(username)) {
-    mostraAlert("error", "Caratteri non validi nell'Username.", "utenti");
-    return;
-  }
-  if (password.length < 8) {
-    mostraAlert("error", "La Password deve contenere almeno 8 caratteri.", "utenti");
+
+  if (
+    password.length < 8 ||
+    !/[A-Z]/.test(password) ||
+    !/[a-z]/.test(password) ||
+    !/[0-9]/.test(password)
+  ) {
+    mostraAlert(
+      "warning",
+      "Password debole: min 8 caratteri, maiuscola, minuscola, numero",
+      "utenti"
+    );
     return;
   }
 
   try {
-    const res = await fetch("/api/utenti", {
+    const res = await fetch(`${API_BASE}/utenti`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username: usernameSanificato, password }),
+      body: JSON.stringify({ username, password }),
     });
-
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore aggiunta utente", "utenti");
+      mostraAlert("error", data.error || "Errore creazione utente", "utenti");
       return;
     }
 
-    mostraAlert("success", `Utente "${data.username}" creato con successo!`, "utenti");
+    mostraAlert("success", "Utente creato con successo", "utenti");
     document.getElementById("nuovo-username").value = "";
     document.getElementById("nuova-password").value = "";
     caricaUtenti();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'aggiunta", "utenti");
+    mostraAlert("error", "Errore di comunicazione col server", "utenti");
   }
 }
 
-function apriModalModificaUtente(id, username) {
+function apriModalModificaUtente(id) {
+  const utente = utenti.find((u) => u.id === id);
+  if (!utente) return;
+
   utenteInModifica = id;
   document.getElementById("modifica-utente-id").textContent = id;
-  document.getElementById("modifica-username").value = username;
+  document.getElementById("modifica-username").value = utente.username;
   document.getElementById("modifica-password").value = "";
-  document.getElementById("modal-modifica-utente").style.display = "flex";
+  document.getElementById("modal-modifica-utente").style.display = "block";
 }
 
 function chiudiModalUtente() {
-  document.getElementById("modal-modifica-utente").style.display = "none";
   utenteInModifica = null;
+  document.getElementById("modal-modifica-utente").style.display = "none";
 }
 
 async function salvaModificaUtente() {
-  const nuovoUsername = document.getElementById("modifica-username").value;
-  const nuovaPassword = document.getElementById("modifica-password").value;
-  const usernameSanificato = sanitizeInputText(nuovoUsername);
+  if (!utenteInModifica) return;
 
-  if (!usernameSanificato) {
-    mostraAlert("error", "L'Username è obbligatorio.", "utenti");
+  const username = sanitizeInputText(
+    document.getElementById("modifica-username").value
+  );
+  const password = document.getElementById("modifica-password").value;
+
+  if (!username) {
+    mostraAlert("warning", "Username non valido", "utenti");
     return;
   }
-  if (containsForbiddenChars(nuovoUsername)) {
-    mostraAlert("error", "Caratteri non validi nell'Username.", "utenti");
-    return;
-  }
-  if (nuovaPassword && nuovaPassword.trim().length < 8) {
-    mostraAlert("error", "La nuova Password deve contenere almeno 8 caratteri.", "utenti");
-    return;
+
+  if (password) {
+    if (
+      password.length < 8 ||
+      !/[A-Z]/.test(password) ||
+      !/[a-z]/.test(password) ||
+      !/[0-9]/.test(password)
+    ) {
+      mostraAlert(
+        "warning",
+        "Nuova password debole: min 8 caratteri, maiuscola, minuscola, numero",
+        "utenti"
+      );
+      return;
+    }
   }
 
   try {
-    const body = { username: usernameSanificato };
-    if (nuovaPassword && nuovaPassword.trim() !== "") {
-      body.password = nuovaPassword;
-    }
+    const body = { username };
+    if (password) body.password = password;
 
-    const res = await fetch(`/api/utenti/${utenteInModifica}`, {
+    const res = await fetch(`${API_BASE}/utenti/${utenteInModifica}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
-
     const data = await res.json();
     if (!res.ok) {
       mostraAlert(
@@ -913,294 +972,170 @@ async function salvaModificaUtente() {
       return;
     }
 
-    mostraAlert("success", "Utente aggiornato con successo", "utenti");
+    mostraAlert("success", "Utente aggiornato", "utenti");
     chiudiModalUtente();
     caricaUtenti();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'aggiornamento", "utenti");
+    mostraAlert("error", "Errore di comunicazione col server", "utenti");
   }
 }
 
-async function eliminaUtente(id, username) {
-  if (utenti.length <= 1) {
-    mostraAlert("error", "Impossibile eliminare: devi lasciare almeno un utente amministratore.", "utenti");
-    return;
-  }
-  if (!confirm(`Sei sicuro di voler eliminare l'utente "${username}"?`)) return;
+async function eliminaUtente(id) {
+  if (!confirm("Eliminare l'utente selezionato?")) return;
 
   try {
-    const res = await fetch(`/api/utenti/${id}`, {
-      method: "DELETE",
-    });
-
+    const res = await fetch(`${API_BASE}/utenti/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore eliminazione utente", "utenti");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione utente",
+        "utenti"
+      );
       return;
     }
 
-    mostraAlert("success", `Utente "${username}" eliminato con successo.`, "utenti");
+    mostraAlert("success", "Utente eliminato", "utenti");
     caricaUtenti();
   } catch (err) {
     console.error(err);
-    mostraAlert("error", "Errore di rete durante l'eliminazione", "utenti");
+    mostraAlert("error", "Errore di comunicazione col server", "utenti");
   }
 }
 
-// =========================================================================
-// 🚀 INIZIALIZZAZIONE E LOGOUT
-// =========================================================================
+// ================== INIT ==================
+window.addEventListener("load", () => {
+  // imposta utente (se vuoi leggere da localStorage qui puoi)
+  document.getElementById("user-display").textContent = "Utente: Admin";
 
-function logout() {
-    localStorage.removeItem("isLoggedIn"); 
-    localStorage.removeItem("username"); 
-    window.location.href = "/index.html";
-}
+  const oggi = new Date().toISOString().slice(0, 10);
+  const inputDataMov = document.getElementById("dato-data");
+  const inputDataStorico = document.getElementById("storico-data");
+  if (inputDataMov) inputDataMov.value = oggi;
+  if (inputDataStorico) inputDataStorico.value = oggi;
 
-// Funzione di setup iniziale
-document.addEventListener("DOMContentLoaded", () => {
-    // 1. Verifica login (semplice check per impedire accesso diretto a home.html)
-    if (localStorage.getItem("isLoggedIn") !== "true") {
-         window.location.href = "/index.html";
-         return;
-    }
-    
-    // 2. Imposta l'username in header
-    const loggedInUsername = localStorage.getItem("username");
-    if(loggedInUsername) {
-        document.getElementById("user-display").textContent = `Utente: ${loggedInUsername}`;
-    }
+  caricaProdotti();
+  caricaDati();
+  caricaRiepilogo();
+  caricaUtenti();
 
-    // 3. Imposta la data di oggi e il tipo di movimento di default
-    setInitialDate();
-    setStoricoInitialDate(); // NUOVO: Imposta la data iniziale per lo storico
-    
-    // 4. Imposta il campo per i movimenti a 'scarico' di default e nasconde i campi carico
-    document.getElementById("dato-tipo").value = "scarico";
-    toggleCaricoFields();
-    
-    // 5. Carica tutti i dati iniziali (inizia con Prodotti attivo)
-    refreshAllData(); 
-    const lastActiveTab = localStorage.getItem('activeTab') || 'prodotti'; // <-- NUOVA RIGA
-    switchTab(lastActiveTab); // <-- SOSTITUISCE refreshAllData()
+  // ripristina ultima tab aperta (di default 'prodotti')
+  let lastTab = "prodotti";
+  try {
+    const saved = localStorage.getItem("magazzino_last_tab");
+    if (saved) lastTab = saved;
+  } catch (e) {
+    console.warn("localStorage non disponibile:", e);
+  }
+
+  switchTab(lastTab);
 });
 
-async function stampaRiepilogoCompleto() {
-    // Mostra un messaggio di caricamento
-    mostraAlert("info", "Preparazione stampa in corso...", "riepilogo");
-    
-    try {
-        // Carica tutti i dati necessari
-        await caricaRiepilogo(true);
-        
-        const printContainer = document.getElementById('print-container');
-        
-        if (!printContainer) {
-            mostraAlert("error", "Errore: contenitore di stampa non trovato.", "riepilogo");
-            return;
-        }
-        
-        // Prepara il contenuto HTML per la stampa
-        let printContent = `
-    <div class="print-header">
-        <h1>📦 Riepilogo Completo Magazzino Moto</h1>
-        <div class="subtitle">Giacenze e Dettaglio Lotti FIFO</div>
-        <div class="data-stampa">Stampato il: ${new Date().toLocaleString('it-IT', {
-            day: '2-digit',
-            month: '2-digit',
-            year: 'numeric',
-            hour: '2-digit',
-            minute: '2-digit'
-        })}</div>
-    </div>
-    
-    <div class="print-summary-box">
-        <div style="font-size: 14pt; margin-bottom: 10px; color: #6b7280;">
-            Valore Totale Magazzino (Costo FIFO)
-        </div>
-        <div class="valore">${formatNumber(
-            riepilogo.reduce((sum, p) => sum + (p.valore_totale || 0), 0)
-        )} €</div>
-    </div>
-`;
+// chiusura modali cliccando fuori
+window.addEventListener("click", (event) => {
+  const modalProd = document.getElementById("modal-modifica-prodotto");
+  const modalUt = document.getElementById("modal-modifica-utente");
+  const modalDett = document.getElementById("modal-dettaglio-lotti");
+  const modalDettStorico = document.getElementById(
+    "modal-dettaglio-lotti-storico"
+  );
 
-        // Per ogni prodotto, aggiungi sezione prodotto + lotti
-        for (const prodotto of riepilogo) {
-            printContent += `
-    <div class="print-prodotto-section">
-        <div class="print-prodotto-header">
-            <span class="print-prodotto-nome">${prodotto.nome}</span>
-            <div class="print-prodotto-info">
-                <span class="print-prodotto-giacenza">Giacenza: ${prodotto.giacenza}</span>
-                <span class="print-prodotto-valore">Valore: ${formatNumber(prodotto.valore_totale)} €</span>
-            </div>
-        </div>
-        
-        <div class="print-lotti-container">
-`;
-
-            // Se il prodotto ha giacenza > 0, carica e mostra i lotti
-            if (prodotto.giacenza > 0) {
-                try {
-                    // Carica i lotti per questo prodotto
-                    const res = await fetch(`/api/riepilogo/${prodotto.id}`);
-                    const lotti = await res.json();
-                    
-                    if (!res.ok) {
-                        throw new Error(lotti.error || "Errore nel caricamento lotti");
-                    }
-                    
-                    if (lotti.length > 0) {
-                        printContent += `
-            <table class="print-lotti-table">
-                <thead>
-                    <tr>
-                        <th>Data Carico</th>
-                        <th style="text-align:right">Quantità Rimanente</th>
-                        <th>Prezzo Unitario</th>
-                        <th>Valore Lotto</th>
-                        <th>Fattura/Doc.</th>
-                        <th>Fornitore</th>
-                    </tr>
-                </thead>
-                <tbody>
-`;
-                        
-                        for (const lotto of lotti) {
-                            const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
-                            printContent += `
-                    <tr>
-                        <td>${formatDate(lotto.data_carico)}</td>
-                        <td style="text-align:right">${lotto.quantita_rimanente}</td>
-                        <td><span class="print-price">${formatNumber(lotto.prezzo)} €</span></td>
-                        <td><span class="print-price">${formatNumber(valoreLotto)} €</span></td>
-                        <td>${displayValue(lotto.fattura_doc)}</td>
-                        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-                    </tr>
-`;
-                        }
-                        
-                        printContent += `
-                </tbody>
-            </table>
-`;
-                    } else {
-                        printContent += `
-            <div class="print-no-lotti">Nessun lotto disponibile</div>
-`;
-                    }
-                } catch (err) {
-                    console.error("Errore caricamento lotti per prodotto", prodotto.id, err);
-                    printContent += `
-            <div class="print-no-lotti" style="color: #ef4444;">Errore nel caricamento dei lotti</div>
-`;
-                }
-            } else {
-                printContent += `
-            <div class="print-no-lotti">Giacenza zero - Nessun lotto attivo</div>
-`;
-            }
-            
-            printContent += `
-        </div>
-    </div>
-`;
-        }
-        
-        // Aggiungi footer
-        printContent += `
-    <div class="print-footer">
-        <div>Gestione Magazzino Moto - Sistema di tracciamento FIFO</div>
-        <div style="margin-top: 5px;">Documento generato automaticamente</div>
-    </div>
-`;
-        
-        // Inserisci il contenuto nel container nascosto
-        printContainer.innerHTML = printContent;
-        
-        // Avvia la stampa direttamente
-        window.print();
-        
-        // Pulisci il container dopo la stampa
-        setTimeout(() => {
-            printContainer.innerHTML = '';
-        }, 1000);
-        
-        mostraAlert("success", "Dialogo di stampa avviato!", "riepilogo");
-        
-    } catch (err) {
-        console.error("Errore durante la preparazione della stampa:", err);
-        mostraAlert("error", "Errore durante la preparazione della stampa: " + err.message, "riepilogo");
+  [modalProd, modalUt, modalDett, modalDettStorico].forEach((modal) => {
+    if (modal && event.target === modal) {
+      modal.style.display = "none";
     }
+  });
+});
+
+function popolaSelectProdotti() {
+  const select = document.getElementById("dato-prodotto");
+  if (!select) return;
+
+  select.innerHTML = `<option value="">Seleziona prodotto...</option>`;
+
+  prodotti.forEach((p) => {
+    const giac = p.giacenza || 0;
+    const opt = document.createElement("option");
+    opt.value = p.id;
+    opt.textContent = `${p.nome} (${giac})`; // <-- numero tra parentesi
+    select.appendChild(opt);
+  });
 }
 
-function disegnaTabellaProdotti() {
-  const tbody = document.getElementById("prodotti-body");
-  
-  if (prodotti.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="3" class="empty-state">
-          <div class="empty-state-content">
-            <div class="empty-state-icon">📦</div>
-            <div class="empty-state-title">Nessun prodotto nel magazzino</div>
-            <div class="empty-state-text">Inizia aggiungendo il tuo primo prodotto utilizzando il modulo qui sopra.<br>Esempio: "Olio Motore 10W40", "Filtro Aria", "Candele NGK"</div>
-          </div>
-        </td>
-      </tr>
+function visualizzaRiepilogo() {
+  const tbody = document.getElementById("riepilogo-body");
+  if (!tbody) return;
+  tbody.innerHTML = "";
+
+  let valoreTotale = 0;
+  let giacenzaTotale = 0;
+
+  riepilogo.forEach((r) => {
+    const giac = r.giacenza || 0;
+    const val = r.valore_totale || 0;
+    giacenzaTotale += giac;
+    valoreTotale += val;
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${r.nome}</td>
+      <td style="text-align:right"><strong>${giac}</strong></td>
+      <td style="text-align:right"><strong>${formatNumber(val)} €</strong></td>
+      <td>
+        ${
+          giac > 0
+            ? `<button class="btn btn-secondary btn-small" onclick="apriDettaglioLotti(${r.id}, '${r.nome}')">👁️ Dettagli Lotti</button>`
+            : ""
+        }
+      </td>
     `;
-    return;
-  }
-  
-  tbody.innerHTML = prodotti
-    .map(
-      (p) => `
-      <tr>
-        <td>${p.nome}</td>
-        <td style="text-align:right">${p.giacenza}</td>
-        <td class="actions">
-          <button class="btn btn-secondary" onclick="apriModalModificaProdotto(${p.id}, '${p.nome}')">Modifica</button>
-          <button class="btn btn-danger" onclick="eliminaProdotto(${p.id}, '${p.nome}', ${p.giacenza})">Elimina</button>
-        </td>
-      </tr>
-    `
-    )
-    .join("");
+    tbody.appendChild(tr);
+  });
+
+  const valElem = document.getElementById("riepilogo-valore-totale");
+  const giacElem = document.getElementById("riepilogo-giacenza-totale");
+  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
+  if (giacElem) giacElem.textContent = giacenzaTotale;
 }
 
-function disegnaTabellaProdotti() {
-  const tbody = document.getElementById("prodotti-body");
-  
-  if (prodotti.length === 0) {
-    tbody.innerHTML = `
-      <tr>
-        <td colspan="3" class="empty-state">
-          <div class="empty-state-content">
-            <div class="empty-state-icon">📦</div>
-            <div class="empty-state-title">Nessun prodotto nel magazzino</div>
-            <div class="empty-state-text">Inizia aggiungendo il tuo primo prodotto utilizzando il modulo qui sopra.<br>Esempio: "Olio Motore 10W40", "Filtro Aria", "Candele NGK"</div>
-          </div>
-        </td>
-      </tr>
-    `;
-    return;
+// ================== NAVIGAZIONE TABS (con localStorage) ==================
+function switchTab(tabName) {
+  // salva l'ultima tab scelta in localStorage
+  try {
+    localStorage.setItem("magazzino_last_tab", tabName);
+  } catch (e) {
+    console.warn("localStorage non disponibile:", e);
   }
-  
-  tbody.innerHTML = prodotti
-    .map(
-      (p) => `
-      <tr>
-        <td>${p.nome}</td>
-        <td style="text-align:right">${p.giacenza}</td>
-        <td class="actions">
-          <button class="btn btn-secondary" onclick="apriModalModificaProdotto(${p.id}, '${p.nome}')">Modifica</button>
-          <button class="btn btn-danger" onclick="eliminaProdotto(${p.id}, '${p.nome}', ${p.giacenza})">Elimina</button>
-        </td>
-      </tr>
-    `
-    )
-    .join("");
+
+  // Nascondo tutte le sezioni
+  document
+    .querySelectorAll(".section")
+    .forEach((s) => s.classList.remove("active"));
+
+  // Tolgo "active" da tutti i bottoni tab
+  document
+    .querySelectorAll(".tab")
+    .forEach((t) => t.classList.remove("active"));
+
+  // Mostro la sezione selezionata
+  const section = document.getElementById(`${tabName}-section`);
+  if (section) section.classList.add("active");
+
+  // Evidenzio il bottone della tab selezionata
+  const tabs = document.querySelectorAll(".tabs .tab");
+  tabs.forEach((btn) => {
+    if (btn.getAttribute("onclick") === `switchTab('${tabName}')`) {
+      btn.classList.add("active");
+    }
+  });
+
+  // Caricamenti automatici per tab
+  if (tabName === "prodotti") caricaProdotti();
+  if (tabName === "dati") caricaDati();
+  if (tabName === "riepilogo") caricaRiepilogo();
+  if (tabName === "storico") {
+    // qui non carico subito, aspetto che tu scelga la data
+  }
+  if (tabName === "utenti") caricaUtenti();
 }
-
-
