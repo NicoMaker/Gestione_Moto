@@ -87,7 +87,9 @@ function switchTab(tabName) {
   document
     .querySelectorAll(".section")
     .forEach((s) => s.classList.remove("active"));
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document
+    .querySelectorAll(".tab")
+    .forEach((t) => t.classList.remove("active"));
 
   const section = document.getElementById(`${tabName}-section`);
   if (section) section.classList.add("active");
@@ -179,7 +181,11 @@ async function aggiungiProdotto() {
 
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore creazione prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore creazione prodotto",
+        "prodotti"
+      );
       return;
     }
 
@@ -225,7 +231,11 @@ async function salvaModificaProdotto() {
     });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore aggiornamento prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore aggiornamento prodotto",
+        "prodotti"
+      );
       return;
     }
     mostraAlert("success", "Prodotto aggiornato", "prodotti");
@@ -245,7 +255,11 @@ async function eliminaProdotto(id) {
     const res = await fetch(`${API_BASE}/prodotti/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore eliminazione prodotto", "prodotti");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione prodotto",
+        "prodotti"
+      );
       return;
     }
     mostraAlert("success", data.message || "Prodotto eliminato", "prodotti");
@@ -328,7 +342,9 @@ function visualizzaDati() {
       <td>${displayValue(d.fattura_doc)}</td>
       <td>${displayValue(d.fornitore_cliente_id)}</td>
       <td>
-        <button class="btn btn-danger btn-small" onclick="eliminaDato(${d.id})">🗑️ Elimina</button>
+        <button class="btn btn-danger btn-small" onclick="eliminaDato(${
+          d.id
+        })">🗑️ Elimina</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -378,7 +394,11 @@ async function aggiungiDato() {
 
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore registrazione movimento", "dati");
+      mostraAlert(
+        "error",
+        data.error || "Errore registrazione movimento",
+        "dati"
+      );
       return;
     }
 
@@ -405,7 +425,11 @@ async function eliminaDato(id) {
     const res = await fetch(`${API_BASE}/dati/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore eliminazione movimento", "dati");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione movimento",
+        "dati"
+      );
       return;
     }
     mostraAlert("success", data.message || "Movimento eliminato", "dati");
@@ -444,13 +468,16 @@ async function apriDettaglioLotti(prodottoId, nomeProdotto) {
       tbody.innerHTML = "";
       lotti.forEach((lotto) => {
         const tr = document.createElement("tr");
+        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
+
         tr.innerHTML = `
-          <td>${formatDate(lotto.data_carico)}</td>
-          <td style="text-align:right">${lotto.quantita_rimanente}</td>
-          <td style="text-align:right">${formatNumber(lotto.prezzo)} €</td>
-          <td>${displayValue(lotto.fattura_doc)}</td>
-          <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-        `;
+        <td>${formatDate(lotto.data_carico)}</td>
+        <td style="text-align:right">${lotto.quantita_rimanente}</td>
+        <td style="text-align:right">${formatNumber(lotto.prezzo)}</td>
+        <td style="text-align:right">${formatNumber(valoreLotto)}</td>
+        <td>${displayValue(lotto.fattura_doc)}</td>
+        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
+    `;
         tbody.appendChild(tr);
       });
     }
@@ -511,10 +538,12 @@ async function stampaRiepilogoCompleto() {
       </div>
       <div class="total">
         Valore totale magazzino: ${
-          document.getElementById("riepilogo-valore-totale")?.textContent || "€ 0,00"
+          document.getElementById("riepilogo-valore-totale")?.textContent ||
+          "€ 0,00"
         }<br/>
         Giacenza complessiva: ${
-          document.getElementById("riepilogo-giacenza-totale")?.textContent || "0"
+          document.getElementById("riepilogo-giacenza-totale")?.textContent ||
+          "0"
         }
       </div>
       <table>
@@ -623,9 +652,13 @@ function visualizzaStorico(valoreTotale) {
     tr.innerHTML = `
       <td>${s.nome}</td>
       <td style="text-align:right"><strong>${giac}</strong></td>
-      <td style="text-align:right"><strong>${formatNumber(s.valore_totale)} €</strong></td>
+      <td style="text-align:right"><strong>${formatNumber(
+        s.valore_totale
+      )} €</strong></td>
       <td>
-        <button class="btn btn-secondary btn-small" onclick="apriDettaglioLottiStorico(${s.id}, '${s.nome}')">👁️ Dettagli Lotti</button>
+        <button class="btn btn-secondary btn-small" onclick="apriDettaglioLottiStorico(${
+          s.id
+        }, '${s.nome}')">👁️ Dettagli Lotti</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -931,7 +964,11 @@ async function salvaModificaUtente() {
     });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore aggiornamento utente", "utenti");
+      mostraAlert(
+        "error",
+        data.error || "Errore aggiornamento utente",
+        "utenti"
+      );
       return;
     }
 
@@ -951,7 +988,11 @@ async function eliminaUtente(id) {
     const res = await fetch(`${API_BASE}/utenti/${id}`, { method: "DELETE" });
     const data = await res.json();
     if (!res.ok) {
-      mostraAlert("error", data.error || "Errore eliminazione utente", "utenti");
+      mostraAlert(
+        "error",
+        data.error || "Errore eliminazione utente",
+        "utenti"
+      );
       return;
     }
 
@@ -979,7 +1020,7 @@ window.addEventListener("load", () => {
   caricaRiepilogo();
   caricaUtenti();
 
-    // ripristina ultima tab aperta (di default 'prodotti')
+  // ripristina ultima tab aperta (di default 'prodotti')
   let lastTab = "prodotti";
   try {
     const saved = localStorage.getItem("magazzino_last_tab");
@@ -1007,7 +1048,6 @@ window.addEventListener("click", (event) => {
   });
 });
 
-
 function popolaSelectProdotti() {
   const select = document.getElementById("dato-prodotto");
   if (!select) return;
@@ -1018,11 +1058,10 @@ function popolaSelectProdotti() {
     const giac = p.giacenza || 0;
     const opt = document.createElement("option");
     opt.value = p.id;
-    opt.textContent = `${p.nome} (${giac})`;    // <-- numero tra parentesi
+    opt.textContent = `${p.nome} (${giac})`; // <-- numero tra parentesi
     select.appendChild(opt);
   });
 }
-
 
 function visualizzaRiepilogo() {
   const tbody = document.getElementById("riepilogo-body");
@@ -1075,7 +1114,9 @@ function switchTab(tabName) {
     .forEach((s) => s.classList.remove("active"));
 
   // Tolgo "active" da tutti i bottoni tab
-  document.querySelectorAll(".tab").forEach((t) => t.classList.remove("active"));
+  document
+    .querySelectorAll(".tab")
+    .forEach((t) => t.classList.remove("active"));
 
   // Mostro la sezione selezionata
   const section = document.getElementById(`${tabName}-section`);
