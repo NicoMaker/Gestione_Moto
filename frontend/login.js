@@ -1,72 +1,36 @@
-const loginForm = document.getElementById("login-form");
-const loginBtn = document.getElementById("login-btn");
-const btnText = document.getElementById("btn-text");
-const alertContainer = document.getElementById("alert-container");
+const API_URL = "http://localhost:3000/api"
 
-// *** PARTE RIMOSSA: ***
-// if (localStorage.getItem("isLoggedIn") === "true") {
-//   window.location.href = "/home.html";
-// }
-// L'utente deve sempre inserire le credenziali, non viene reindirizzato in automatico.
-// *** FINE PARTE RIMOSSA ***
+document.getElementById("loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault()
 
-function showAlert(message) {
-  alertContainer.innerHTML = `<div class="alert alert-error">${message}</div>`;
-  setTimeout(() => {
-    alertContainer.innerHTML = "";
-  }, 5000);
-}
+  const username = document.getElementById("username").value.trim()
+  const password = document.getElementById("password").value
+  const errorMessage = document.getElementById("errorMessage")
+  const btnLogin = document.querySelector(".btn-login")
 
-loginForm.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const username = document.getElementById("username").value;
-  const password = document.getElementById("password").value;
-
-  // Disabilita il pulsante e mostra loading
-  loginBtn.disabled = true;
-  btnText.innerHTML =
-    '<span class="loading-spinner"></span> Accesso in corso...';
+  errorMessage.classList.remove("show")
+  btnLogin.classList.add("loading")
 
   try {
-    const response = await fetch("/api/auth/login", {
+    const response = await fetch(`${API_URL}/auth/login`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ username, password }),
-    });
+    })
 
-    const data = await response.json();
+    const data = await response.json()
 
     if (response.ok) {
-      // Login riuscito
-      // Manteniamo il salvataggio in localStorage per indicare l'avvenuto login
-      // e per memorizzare lo username, ma NON lo useremo per l'autologin
-      localStorage.setItem("isLoggedIn", "true");
-      localStorage.setItem("username", data.username);
-
-      // Reindirizza alla pagina principale
-      // Ho corretto il reindirizzamento a /home.html come nel codice originale (se era quello corretto)
-      // Se vuoi index.html, lascia come era: window.location.href = "/index.html";
-      window.location.href = "/home.html"; 
+      localStorage.setItem("loggedUser", username)
+      window.location.href = "home.html"
     } else {
-      // Login fallito
-      showAlert(data.error || "Credenziali non valide");
-      loginBtn.disabled = false;
-      btnText.textContent = "Accedi";
+      errorMessage.textContent = data.error || "Errore durante il login"
+      errorMessage.classList.add("show")
     }
   } catch (error) {
-    console.error("Errore durante il login:", error);
-    showAlert("Errore di connessione al server");
-    loginBtn.disabled = false;
-    btnText.textContent = "Accedi";
+    errorMessage.textContent = "Errore di connessione al server"
+    errorMessage.classList.add("show")
+  } finally {
+    btnLogin.classList.remove("loading")
   }
-});
-
-// Permetti l'invio con Enter
-document.getElementById("password").addEventListener("keypress", (e) => {
-  if (e.key === "Enter") {
-    loginForm.dispatchEvent(new Event("submit"));
-  }
-});
+})

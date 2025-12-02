@@ -1,1450 +1,983 @@
-// ================== VARIABILI GLOBALI ==================
-let prodotti = [];
-let dati = [];
-let riepilogo = [];
-let utenti = [];
-let storico = []; // dati storico per data
+// ==================== CONFIGURAZIONE ====================
+const API_URL = "http://localhost:3000/api"
 
-let prodottoInModifica = null;
-let utenteInModifica = null;
+let marche = []
+let prodotti = []
+let movimenti = []
+let utenti = []
 
-let prodottoDettaglioLotti = null;
-let prodottoDettaglioLottiStorico = null;
-
-// ================== CONFIG ==================
-const API_BASE = "http://localhost:3000/api";
-
-// ================== UTILITY ==================
-function containsForbiddenChars(input) {
-  if (typeof input !== "string") return false;
-  const forbiddenRegex = /['\";<>\\-]/;
-  return forbiddenRegex.test(input);
-}
-
-function sanitizeInputText(input) {
-  if (typeof input !== "string") return "";
-  return input.replace(/[^a-zA-Z0-9\s\-\\_.,]+/g, "").trim();
-}
-
-function formatNumber(value) {
-  if (value === null || typeof value === "undefined" || isNaN(value)) {
-    return "0,00";
-  }
-  return Number(value).toLocaleString("it-IT", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
-}
-
-function formatDate(dateString) {
-  if (!dateString) return "";
-  const date = new Date(dateString);
-  const day = String(date.getDate()).padStart(2, "0");
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const year = date.getFullYear();
-  return `${day}/${month}/${year}`;
-}
-
-function displayValue(val) {
-  return val && String(val).trim() !== "" ? val : "—";
-}
-
-function mostraAlert(type, message, section) {
-  const container = document.getElementById(`${section}-alert`);
-  if (!container) return;
-
-  let icon;
-  let cssClass;
-
-  switch (type) {
-    case "success":
-      icon = "✅";
-      cssClass = "alert-success";
-      break;
-    case "error":
-      icon = "❌";
-      cssClass = "alert-error";
-      break;
-    case "warning":
-      icon = "⚠️";
-      cssClass = "alert-warning";
-      break;
-    default:
-      icon = "ℹ️";
-      cssClass = "alert-info";
-      break;
+// ==================== INIZIALIZZAZIONE ====================
+document.addEventListener("DOMContentLoaded", () => {
+  const username = localStorage.getItem("username")
+  if (username) {
+    document.getElementById("currentUser").textContent = username
   }
 
-  container.innerHTML = `<div class="${cssClass}">${icon} ${message}</div>`;
+  // Setup navigation
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.addEventListener("click", (e) => {
+      e.preventDefault()
+      const section = item.dataset.section
 
-  setTimeout(() => {
-    container.innerHTML = "";
-  }, 5000);
-}
+      document.querySelectorAll(".nav-item").forEach((i) => i.classList.remove("active"))
+      document.querySelectorAll(".content-section").forEach((s) => s.classList.remove("active"))
 
-// ================== NAVIGAZIONE TABS ==================
-function switchTab(tabName) {
-  document
-    .querySelectorAll(".section")
-    .forEach((s) => s.classList.remove("active"));
-  document
-    .querySelectorAll(".tab")
-    .forEach((t) => t.classList.remove("active"));
+      item.classList.add("active")
+      document.getElementById(`section-${section}`).classList.add("active")
 
-  const section = document.getElementById(`${tabName}-section`);
-  if (section) section.classList.add("active");
+      // Carica dati sezione
+      if (section === "marche") loadMarche()
+      if (section === "prodotti") loadProdotti()
+      if (section === "movimenti") loadMovimenti()
+      if (section === "riepilogo") loadRiepilogo()
+      if (section === "utenti") loadUtenti()
+    })
+  })
 
-  // attiva tab button
-  const tabs = document.querySelectorAll(".tabs .tab");
-  tabs.forEach((btn) => {
-    if (btn.getAttribute("onclick") === `switchTab('${tabName}')`) {
-      btn.classList.add("active");
-    }
-  });
+  // Logout
+  document.getElementById("logoutBtn").addEventListener("click", () => {
+    localStorage.removeItem("username")
+    window.location.href = "index.html"
+  })
 
-  // caricamenti automatici per tab
-  if (tabName === "prodotti") caricaProdotti();
-  if (tabName === "dati") caricaDati();
-  if (tabName === "riepilogo") caricaRiepilogo();
-  if (tabName === "storico") {
-    // non carico subito, aspetto data
-  }
-  if (tabName === "utenti") caricaUtenti();
-}
+  // Carica sezione iniziale
+  loadMarche()
+})
 
-// ================== LOGOUT ==================
-function logout() {
-  window.location.href = "index.html";
-}
-
-// ================== PRODOTTI ==================
-async function caricaProdotti() {
+// ==================== MARCHE ====================
+async function loadMarche() {
   try {
-    const res = await fetch(`${API_BASE}/prodotti`);
-    if (!res.ok) throw new Error("Errore nel recupero prodotti");
-    prodotti = await res.json();
-    popolaSelectProdotti();
-    visualizzaProdotti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento dei prodotti", "prodotti");
+    const res = await fetch(`${API_URL}/marche`)
+    marche = await res.json()
+    renderMarche()
+  } catch (error) {
+    console.error("Errore caricamento marche:", error)
   }
 }
 
-function visualizzaProdotti() {
-  const tbody = document.getElementById("prodotti-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderMarche() {
+  const tbody = document.getElementById("marcheTableBody")
 
-  let totalGiacenza = 0;
+  if (marche.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center">Nessuna marca presente</td></tr>'
+    return
+  }
 
-  prodotti.forEach((p) => {
-    const giac = p.giacenza || 0;
-    totalGiacenza += giac;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${p.nome}</td>
-      <td style="text-align:right"><strong>${giac}</strong></td>
-      <td>
-        <button class="btn btn-secondary btn-small" onclick="apriModalModificaProdotto(${p.id})">✏️ Modifica</button>
-        <button class="btn btn-danger btn-small" onclick="eliminaProdotto(${p.id})">🗑️ Elimina</button>
+  tbody.innerHTML = marche
+    .map(
+      (m) => `
+    <tr>
+      <td><strong>${m.nome}</strong></td>
+      <td>${new Date(m.data_creazione).toLocaleDateString("it-IT")}</td>
+      <td class="text-right">
+        <button class="btn-icon" onclick="editMarca(${m.id})" title="Modifica">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="btn-icon" onclick="deleteMarca(${m.id})" title="Elimina">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
       </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  // totali
-  const totProd = document.getElementById("total-prodotti");
-  const totGiac = document.getElementById("total-giacenza");
-  if (totProd) totProd.textContent = prodotti.length;
-  if (totGiac) totGiac.textContent = totalGiacenza;
+    </tr>
+  `,
+    )
+    .join("")
 }
 
-async function aggiungiProdotto() {
-  const input = document.getElementById("prodotto-nome");
-  if (!input) return;
-  const nomeRaw = input.value;
-  const nome = sanitizeInputText(nomeRaw);
+function openMarcaModal(marca = null) {
+  const modal = document.getElementById("modalMarca")
+  const title = document.getElementById("modalMarcaTitle")
+  const form = document.getElementById("formMarca")
 
-  if (!nome) {
-    mostraAlert("warning", "Inserisci un nome prodotto valido", "prodotti");
-    return;
+  form.reset()
+
+  if (marca) {
+    title.textContent = "Modifica Marca"
+    document.getElementById("marcaId").value = marca.id
+    document.getElementById("marcaNome").value = marca.nome
+  } else {
+    title.textContent = "Nuova Marca"
+    document.getElementById("marcaId").value = ""
   }
+
+  modal.classList.add("active")
+}
+
+function closeMarcaModal() {
+  document.getElementById("modalMarca").classList.remove("active")
+}
+
+function editMarca(id) {
+  const marca = marche.find((m) => m.id === id)
+  if (marca) openMarcaModal(marca)
+}
+
+async function deleteMarca(id) {
+  if (!confirm("Sei sicuro di voler eliminare questa marca?")) return
 
   try {
-    const res = await fetch(`${API_BASE}/prodotti`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome }),
-    });
+    const res = await fetch(`${API_URL}/marche/${id}`, { method: "DELETE" })
+    const data = await res.json()
 
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore creazione prodotto",
-        "prodotti"
-      );
-      return;
-    }
-
-    mostraAlert("success", "Prodotto creato con successo", "prodotti");
-    input.value = "";
-    caricaProdotti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
-  }
-}
-
-function apriModalModificaProdotto(id) {
-  const prodotto = prodotti.find((p) => p.id === id);
-  if (!prodotto) return;
-
-  prodottoInModifica = id;
-  document.getElementById("modifica-prodotto-id").textContent = id;
-  document.getElementById("modifica-prodotto-nome").value = prodotto.nome;
-  document.getElementById("modal-modifica-prodotto").style.display = "block";
-}
-
-function chiudiModalProdotto() {
-  prodottoInModifica = null;
-  document.getElementById("modal-modifica-prodotto").style.display = "none";
-}
-
-async function salvaModificaProdotto() {
-  if (!prodottoInModifica) return;
-  const nome = sanitizeInputText(
-    document.getElementById("modifica-prodotto-nome").value
-  );
-  if (!nome) {
-    mostraAlert("warning", "Nome prodotto non valido", "prodotti");
-    return;
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/prodotti/${prodottoInModifica}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nome }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore aggiornamento prodotto",
-        "prodotti"
-      );
-      return;
-    }
-    mostraAlert("success", "Prodotto aggiornato", "prodotti");
-    chiudiModalProdotto();
-    caricaProdotti();
-    caricaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
-  }
-}
-
-async function eliminaProdotto(id) {
-  if (!confirm("Eliminare il prodotto selezionato?")) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/prodotti/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore eliminazione prodotto",
-        "prodotti"
-      );
-      return;
-    }
-    mostraAlert("success", data.message || "Prodotto eliminato", "prodotti");
-    caricaProdotti();
-    caricaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "prodotti");
-  }
-}
-
-function popolaSelectProdotti() {
-  const select = document.getElementById("dato-prodotto");
-  if (!select) return;
-  select.innerHTML = `<option value="">Seleziona prodotto...</option>`;
-  prodotti.forEach((p) => {
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = p.nome;
-    select.appendChild(opt);
-  });
-}
-
-// ================== MOVIMENTI (DATI) ==================
-function toggleCaricoFields() {
-  const tipo = document.getElementById("dato-tipo").value;
-  const prezzoGroup = document.getElementById("prezzo-group");
-  const fatturaGroup = document.getElementById("fattura-group");
-  const fornitoreGroup = document.getElementById("fornitore-group");
-
-  const isCarico = tipo === "carico";
-
-  [prezzoGroup, fatturaGroup, fornitoreGroup].forEach((el) => {
-    if (!el) return;
-    if (isCarico) {
-      el.classList.remove("hidden");
+    if (res.ok) {
+      alert("Marca eliminata con successo!")
+      loadMarche()
     } else {
-      el.classList.add("hidden");
+      alert(data.error || "Errore durante l'eliminazione")
     }
-  });
+  } catch (error) {
+    alert("Errore di connessione")
+  }
 }
 
-async function caricaDati() {
+document.getElementById("formMarca").addEventListener("submit", async (e) => {
+  e.preventDefault()
+
+  const id = document.getElementById("marcaId").value
+  const nome = document.getElementById("marcaNome").value.trim()
+
+  const method = id ? "PUT" : "POST"
+  const url = id ? `${API_URL}/marche/${id}` : `${API_URL}/marche`
+
   try {
-    const res = await fetch(`${API_BASE}/dati`);
-    if (!res.ok) throw new Error("Errore recupero movimenti");
-    dati = await res.json();
-    visualizzaDati();
-    caricaProdotti(); // per tenere giacenze aggiornate
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento dei movimenti", "dati");
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome }),
+    })
+
+    const data = await res.json()
+
+    if (res.ok) {
+      alert(id ? "Marca aggiornata!" : "Marca creata!")
+      closeMarcaModal()
+      loadMarche()
+    } else {
+      alert(data.error || "Errore durante il salvataggio")
+    }
+  } catch (error) {
+    alert("Errore di connessione")
+  }
+})
+
+// ==================== PRODOTTI ====================
+async function loadProdotti() {
+  try {
+    const res = await fetch(`${API_URL}/prodotti`)
+    prodotti = await res.json()
+    renderProdotti()
+  } catch (error) {
+    console.error("Errore caricamento prodotti:", error)
   }
 }
 
-function visualizzaDati() {
-  const tbody = document.getElementById("dati-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderProdotti() {
+  const tbody = document.getElementById("prodottiTableBody")
 
-  dati.forEach((d) => {
-    const isCarico = d.tipo === "carico";
+  if (prodotti.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nessun prodotto presente</td></tr>'
+    return
+  }
 
-    const prezzoUnit = d.prezzo_unitario_scarico
-      ? d.prezzo_unitario_scarico
-      : d.prezzo;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${formatDate(d.data_movimento)}</td>
-      <td>${d.prodotto_nome}</td>
-      <td>${isCarico ? "CARICO" : "SCARICO"}</td>
-      <td style="text-align:right">${d.quantita}</td>
-      <td style="text-align:right">${
-        prezzoUnit != null ? formatNumber(prezzoUnit) + " €" : "—"
-      }</td>
-      <td style="text-align:right">${
-        d.prezzo_totale != null ? formatNumber(d.prezzo_totale) + " €" : "—"
-      }</td>
-      <td>${displayValue(d.fattura_doc)}</td>
-      <td>${displayValue(d.fornitore_cliente_id)}</td>
-      <td>
-        <button class="btn btn-danger btn-small" onclick="eliminaDato(${
-          d.id
-        })">🗑️ Elimina</button>
+  tbody.innerHTML = prodotti
+    .map(
+      (p) => `
+    <tr>
+      <td>${p.id}</td>
+      <td><strong>${p.nome}</strong></td>
+      <td>${p.marca_nome || '<span style="color: #999;">-</span>'}</td>
+      <td>${p.descrizione ? `<small>${p.descrizione.substring(0, 50)}${p.descrizione.length > 50 ? "..." : ""}</small>` : '<span style="color: #999;">-</span>'}</td>
+      <td><span class="badge ${p.giacenza > 0 ? "badge-success" : "badge-danger"}">${p.giacenza}</span></td>
+      <td class="text-right">
+        <button class="btn-icon" onclick="editProdotto(${p.id})" title="Modifica">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="btn-icon" onclick="deleteProdotto(${p.id})" title="Elimina">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
       </td>
-    `;
-    tbody.appendChild(tr);
-  });
+    </tr>
+  `,
+    )
+    .join("")
 }
 
-async function aggiungiDato() {
-  const tipo = document.getElementById("dato-tipo").value;
-  const prodottoId = document.getElementById("dato-prodotto").value;
-  const dataMov = document.getElementById("dato-data").value;
-  const quantita = Number(document.getElementById("dato-quantita").value);
-  let prezzo = document.getElementById("dato-prezzo").value;
-  const fattura = document.getElementById("dato-fattura").value;
-  const fornitore = document.getElementById("dato-fornitore").value;
-
-  if (!prodottoId || !dataMov || !quantita || quantita <= 0) {
-    mostraAlert("warning", "Compila tutti i campi obbligatori", "dati");
-    return;
+async function openProdottoModal(prodotto = null) {
+  if (marche.length === 0) {
+    const res = await fetch(`${API_URL}/marche`)
+    marche = await res.json()
   }
+
+  const modal = document.getElementById("modalProdotto")
+  const title = document.getElementById("modalProdottoTitle")
+  const form = document.getElementById("formProdotto")
+  const selectMarca = document.getElementById("prodottoMarca")
+
+  form.reset()
+
+  selectMarca.innerHTML = marche.map((m) => `<option value="${m.id}">${m.nome}</option>`).join("")
+
+  if (prodotto) {
+    title.textContent = "Modifica Prodotto"
+    document.getElementById("prodottoId").value = prodotto.id
+    document.getElementById("prodottoNome").value = prodotto.nome
+    document.getElementById("prodottoMarca").value = prodotto.marca_id || ""
+    document.getElementById("prodottoDescrizione").value = prodotto.descrizione || ""
+  } else {
+    title.textContent = "Nuovo Prodotto"
+    document.getElementById("prodottoId").value = ""
+  }
+
+  modal.classList.add("active")
+}
+
+function closeProdottoModal() {
+  document.getElementById("modalProdotto").classList.remove("active")
+}
+
+function editProdotto(id) {
+  const prodotto = prodotti.find((p) => p.id === id)
+  if (prodotto) openProdottoModal(prodotto)
+}
+
+async function deleteProdotto(id) {
+  if (!confirm("Sei sicuro di voler eliminare questo prodotto?")) return
+
+  try {
+    const res = await fetch(`${API_URL}/prodotti/${id}`, { method: "DELETE" })
+    const data = await res.json()
+
+    if (res.ok) {
+      alert("Prodotto eliminato con successo!")
+      loadProdotti()
+    } else {
+      alert(data.error || "Errore durante l'eliminazione")
+    }
+  } catch (error) {
+    alert("Errore di connessione")
+  }
+}
+
+document.getElementById("formProdotto").addEventListener("submit", async (e) => {
+  e.preventDefault()
+
+  const id = document.getElementById("prodottoId").value
+  const nome = document.getElementById("prodottoNome").value.trim()
+  const marca_id = document.getElementById("prodottoMarca").value
+  const descrizione = document.getElementById("prodottoDescrizione").value.trim() || null
+
+  if (!marca_id) {
+    alert("La marca è obbligatoria!")
+    return
+  }
+
+  const method = id ? "PUT" : "POST"
+  const url = id ? `${API_URL}/prodotti/${id}` : `${API_URL}/prodotti`
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nome, marca_id, descrizione }),
+    })
+
+    const data = await res.json()
+
+    if (res.ok) {
+      alert(id ? "Prodotto aggiornato!" : "Prodotto creato!")
+      closeProdottoModal()
+      loadProdotti()
+    } else {
+      alert(data.error || "Errore durante il salvataggio")
+    }
+  } catch (error) {
+    alert("Errore di connessione")
+  }
+})
+
+// ==================== MOVIMENTI ====================
+async function loadMovimenti() {
+  try {
+    const res = await fetch(`${API_URL}/dati`)
+    movimenti = await res.json()
+    renderMovimenti()
+  } catch (error) {
+    console.error("Errore caricamento movimenti:", error)
+  }
+}
+
+function renderMovimenti() {
+  const tbody = document.getElementById("movimentiTableBody")
+
+  if (movimenti.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center">Nessun movimento presente</td></tr>'
+    return
+  }
+
+  tbody.innerHTML = movimenti
+    .map(
+      (m) => `
+    <tr>
+      <td>${m.id}</td>
+      <td><strong>${m.prodotto_nome}</strong></td>
+      <td>${m.marca_nome || '<span style="color: #999;">-</span>'}</td>
+      <td><span class="badge ${m.tipo === "carico" ? "badge-success" : "badge-danger"}">${m.tipo.toUpperCase()}</span></td>
+      <td>${m.quantita}</td>
+      <td>${m.tipo === "carico" ? `€ ${Number.parseFloat(m.prezzo).toFixed(2)}` : m.prezzo_unitario_scarico ? `€ ${Number.parseFloat(m.prezzo_unitario_scarico).toFixed(2)}` : "-"}</td>
+      <td><strong>€ ${Number.parseFloat(m.prezzo_totale || 0).toFixed(2)}</strong></td>
+      <td>${new Date(m.data_movimento).toLocaleDateString("it-IT")}</td>
+      <td>${m.fattura_doc || '<span style="color: #999;">-</span>'}</td>
+      <td class="text-right">
+        <button class="btn-icon" onclick="deleteMovimento(${m.id})" title="Elimina">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </td>
+    </tr>
+  `,
+    )
+    .join("")
+}
+
+async function openMovimentoModal() {
+  if (prodotti.length === 0) {
+    const res = await fetch(`${API_URL}/prodotti`)
+    prodotti = await res.json()
+  }
+
+  const modal = document.getElementById("modalMovimento")
+  const form = document.getElementById("formMovimento")
+  const selectProdotto = document.getElementById("movimentoProdotto")
+
+  form.reset()
+
+  selectProdotto.innerHTML =
+    '<option value="">Seleziona prodotto...</option>' +
+    prodotti
+      .map((p) => `<option value="${p.id}">${p.nome}${p.marca_nome ? ` (${p.marca_nome})` : ""}</option>`)
+      .join("")
+
+  document.getElementById("movimentoData").valueAsDate = new Date()
+  document.getElementById("movimentoTipo").value = "carico"
+  togglePrezzoField()
+
+  selectProdotto.addEventListener("change", mostraGiacenzaProdotto)
+
+  modal.classList.add("active")
+}
+
+function closeMovimentoModal() {
+  document.getElementById("movimentoProdotto").removeEventListener("change", mostraGiacenzaProdotto)
+  document.getElementById("modalMovimento").classList.remove("active")
+}
+
+async function mostraGiacenzaProdotto() {
+  const prodottoId = document.getElementById("movimentoProdotto").value
+  const giacenzaInfo = document.getElementById("giacenzaInfo")
+  const giacenzaValue = document.getElementById("giacenzaValue")
+
+  if (!prodottoId) {
+    giacenzaInfo.style.display = "none"
+    return
+  }
+
+  const prodotto = prodotti.find((p) => p.id === Number.parseInt(prodottoId))
+
+  if (prodotto) {
+    giacenzaValue.textContent = prodotto.giacenza || 0
+    giacenzaInfo.style.display = "block"
+  }
+}
+
+function togglePrezzoField() {
+  const tipo = document.getElementById("movimentoTipo").value
+  const prezzoGroup = document.getElementById("prezzoGroup")
+  const prezzoInput = document.getElementById("movimentoPrezzo")
+  const fornitoreGroup = document.getElementById("fornitoreGroup")
+  const fatturaInput = document.getElementById("movimentoFattura")
+  const fornitoreInput = document.getElementById("movimentoFornitore")
+  const docOptional = document.getElementById("docOptional")
+  const fornitoreOptional = document.getElementById("fornitoreOptional")
 
   if (tipo === "carico") {
-    prezzo = String(prezzo).replace(",", ".");
-    const prc = parseFloat(prezzo);
-    if (!prc || prc <= 0) {
-      mostraAlert("warning", "Prezzo unitario carico non valido", "dati");
-      return;
-    }
-    prezzo = prc;
+    prezzoGroup.style.display = "block"
+    prezzoInput.required = true
+    fornitoreGroup.style.display = "block"
+    fatturaInput.required = true
+    fornitoreInput.required = true
+    docOptional.textContent = "*"
+    fornitoreOptional.textContent = "*"
   } else {
-    prezzo = null;
+    prezzoGroup.style.display = "none"
+    prezzoInput.required = false
+    prezzoInput.value = ""
+    fornitoreGroup.style.display = "none"
+    fornitoreInput.value = ""
+    fatturaInput.required = false
+    fornitoreInput.required = false
+    docOptional.textContent = ""
+    fornitoreOptional.textContent = ""
   }
+}
+
+async function deleteMovimento(id) {
+  if (!confirm("Sei sicuro di voler eliminare questo movimento?")) return
 
   try {
-    const res = await fetch(`${API_BASE}/dati`, {
+    const res = await fetch(`${API_URL}/dati/${id}`, { method: "DELETE" })
+    const data = await res.json()
+
+    if (res.ok) {
+      alert(data.message || "Movimento eliminato!")
+      loadMovimenti()
+      loadProdotti()
+    } else {
+      alert(data.error || "Errore durante l'eliminazione")
+    }
+  } catch (error) {
+    alert("Errore di connessione")
+  }
+}
+
+document.getElementById("formMovimento").addEventListener("submit", async (e) => {
+  e.preventDefault()
+
+  const prodotto_id = document.getElementById("movimentoProdotto").value
+  const tipo = document.getElementById("movimentoTipo").value
+  const quantita = document.getElementById("movimentoQuantita").value
+  const prezzo = document.getElementById("movimentoPrezzo").value || null
+  const data_movimento = document.getElementById("movimentoData").value
+  const fattura_doc = document.getElementById("movimentoFattura").value.trim() || null
+  const fornitore = document.getElementById("movimentoFornitore").value.trim() || null
+
+  try {
+    const res = await fetch(`${API_URL}/dati`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prodotto_id: Number(prodottoId),
+        prodotto_id,
         tipo,
         quantita,
         prezzo,
-        data_movimento: dataMov,
-        fattura_doc: sanitizeInputText(fattura),
-        fornitore_cliente_id: sanitizeInputText(fornitore),
+        data_movimento,
+        fattura_doc,
+        fornitore,
       }),
-    });
+    })
 
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore registrazione movimento",
-        "dati"
-      );
-      return;
+    const data = await res.json()
+
+    if (res.ok) {
+      alert("Movimento registrato!")
+      closeMovimentoModal()
+      loadMovimenti()
+      loadProdotti()
+    } else {
+      alert(data.error || "Errore durante il salvataggio")
     }
+  } catch (error) {
+    alert("Errore di connessione")
+  }
+})
 
-    mostraAlert("success", "Movimento registrato", "dati");
+// ==================== RIEPILOGO ====================
+async function loadRiepilogo() {
+  try {
+    const resRiepilogo = fetch(`${API_URL}/magazzino/riepilogo`)
+    const resValore = fetch(`${API_URL}/magazzino/valore-magazzino`)
 
-    // pulizia campi (lascio tipo e prodotto)
-    document.getElementById("dato-quantita").value = "";
-    document.getElementById("dato-prezzo").value = "";
-    document.getElementById("dato-fattura").value = "";
-    document.getElementById("dato-fornitore").value = "";
+    const [riepilogoRes, valoreRes] = await Promise.all([resRiepilogo, resValore])
 
-    caricaDati();
-    caricaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "dati");
+    const riepilogo = await riepilogoRes.json()
+    const { valore_totale } = await valoreRes.json()
+
+    document.getElementById("valoreTotale").textContent = `€ ${Number.parseFloat(valore_totale).toFixed(2)}`
+    renderRiepilogo(riepilogo)
+  } catch (error) {
+    console.error("Errore caricamento riepilogo:", error)
   }
 }
 
-async function eliminaDato(id) {
-  if (!confirm("Eliminare il movimento selezionato?")) return;
+function renderRiepilogo(riepilogo) {
+  const tbody = document.getElementById("riepilogoTableBody")
+
+  if (riepilogo.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="text-center">Nessun dato disponibile</td></tr>'
+    return
+  }
+
+  tbody.innerHTML = riepilogo
+    .map(
+      (r) => `
+    <tr>
+      <td><strong>${r.nome}</strong></td>
+      <td>${r.marca_nome || '<span style="color: #999;">-</span>'}</td>
+      <td>${r.descrizione ? `<small>${r.descrizione.substring(0, 40)}${r.descrizione.length > 40 ? "..." : ""}</small>` : '<span style="color: #999;">-</span>'}</td>
+      <td><span class="badge ${r.giacenza > 0 ? "badge-success" : "badge-danger"}">${r.giacenza}</span></td>
+      <td><strong>€ ${Number.parseFloat(r.valore_totale).toFixed(2)}</strong></td>
+    </tr>
+  `,
+    )
+    .join("")
+}
+
+async function printRiepilogo() {
+  const valoreTotale = document.getElementById("valoreTotale").textContent
 
   try {
-    const res = await fetch(`${API_BASE}/dati/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore eliminazione movimento",
-        "dati"
-      );
-      return;
-    }
-    mostraAlert("success", data.message || "Movimento eliminato", "dati");
-    caricaDati();
-    caricaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "dati");
-  }
-}
+    const riepilogoRes = await fetch(`${API_URL}/magazzino/riepilogo`)
+    const riepilogo = await riepilogoRes.json()
 
-// ================== RIEPILOGO MAGAZZINO CORRENTE ==================
-async function caricaRiepilogo() {
-  try {
-    const res = await fetch(`${API_BASE}/riepilogo`);
-    if (!res.ok) throw new Error("Errore recupero riepilogo");
-    riepilogo = await res.json();
-    visualizzaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento del riepilogo", "riepilogo");
-  }
-}
+    let printContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Riepilogo Magazzino</title>
+        <style>
+          body { font-family: Arial, sans-serif; margin: 20px; }
+          h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+          .info { margin: 20px 0; font-size: 14px; }
+          .prodotto-block { margin-bottom: 30px; page-break-inside: avoid; }
+          .prodotto-header { 
+            background-color: #e0e7ff; 
+            padding: 10px; 
+            margin-bottom: 10px;
+            border-left: 4px solid #4F46E5;
+          }
+          .prodotto-info { display: flex; justify-content: space-between; margin: 5px 0; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+          th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+          th { background-color: #6366f1; color: white; }
+          .lotto-row { background-color: #f9fafb; }
+          .no-lotti { text-align: center; color: #999; padding: 15px; font-style: italic; }
+        </style>
+      </head>
+      <body>
+        <h1>Riepilogo Magazzino</h1>
+        <div class="info">
+          <p><strong>Valore Totale:</strong> ${valoreTotale}</p>
+          <p><strong>Data Stampa:</strong> ${new Date().toLocaleDateString("it-IT")} ${new Date().toLocaleTimeString("it-IT")}</p>
+        </div>
+    `
 
-async function apriDettaglioLotti(prodottoId, nomeProdotto) {
-  try {
-    const res = await fetch(`${API_BASE}/riepilogo/${prodottoId}`);
-    if (!res.ok) throw new Error("Errore recupero lotti");
-    const lotti = await res.json();
+    for (const prodotto of riepilogo) {
+      printContent += `
+        <div class="prodotto-block">
+          <div class="prodotto-header">
+            <div class="prodotto-info">
+              <span><strong>Prodotto:</strong> ${prodotto.nome}</span>
+              <span><strong>Giacenza Totale:</strong> ${prodotto.giacenza}</span>
+            </div>
+            <div class="prodotto-info">
+              <span><strong>Marca:</strong> ${prodotto.marca_nome || "-"}</span>
+              <span><strong>Valore Totale:</strong> € ${Number.parseFloat(prodotto.valore_totale).toFixed(2)}</span>
+            </div>
+            ${prodotto.descrizione ? `<div class="prodotto-info"><span><strong>Descrizione:</strong> ${prodotto.descrizione}</span></div>` : ""}
+          </div>
+      `
 
-    const titolo = document.getElementById("dettaglio-prodotto-nome");
-    const tbody = document.getElementById("lotti-body");
+      if (prodotto.giacenza > 0) {
+        const lottiRes = await fetch(`${API_URL}/magazzino/riepilogo/${prodotto.id}`)
+        const lotti = await lottiRes.json()
 
-    if (titolo) titolo.textContent = `Dettaglio Lotti - ${nomeProdotto}`;
-    if (tbody) {
-      tbody.innerHTML = "";
-      lotti.forEach((lotto) => {
-        const tr = document.createElement("tr");
-        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
+        if (lotti && lotti.length > 0) {
+          printContent += `
+            <table>
+              <thead>
+                <tr>
+                  <th>ID Lotto</th>
+                  <th>Quantità</th>
+                  <th>Prezzo Unit.</th>
+                  <th>Valore</th>
+                  <th>Data Carico</th>
+                  <th>Documento</th>
+                  <th>Fornitore</th>
+                </tr>
+              </thead>
+              <tbody>
+          `
 
-        tr.innerHTML = `
-        <td>${formatDate(lotto.data_carico)}</td>
-        <td style="text-align:right">${lotto.quantita_rimanente}</td>
-        <td style="text-align:right">${formatNumber(lotto.prezzo)}</td>
-        <td style="text-align:right">${formatNumber(valoreLotto)}</td>
-        <td>${displayValue(lotto.fattura_doc)}</td>
-        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-    `;
-        tbody.appendChild(tr);
-      });
-    }
+          lotti.forEach((lotto) => {
+            printContent += `
+              <tr class="lotto-row">
+                <td>${lotto.id}</td>
+                <td>${lotto.quantita_rimanente}</td>
+                <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
+                <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
+                <td>${new Date(lotto.data_carico).toLocaleDateString("it-IT")}</td>
+                <td>${lotto.fattura_doc || "-"}</td>
+                <td>${lotto.fornitore || "-"}</td>
+              </tr>
+            `
+          })
 
-    document.getElementById("modal-dettaglio-lotti").style.display = "block";
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento dei lotti", "riepilogo");
-  }
-}
-
-function chiudiModalDettaglioLotti() {
-  document.getElementById("modal-dettaglio-lotti").style.display = "none";
-}
-
-// stampa riepilogo completo prodotti + lotti
-async function stampaRiepilogoCompleto() {
-  if (!riepilogo || riepilogo.length === 0) {
-    mostraAlert("warning", "Nessun dato di riepilogo da stampare", "riepilogo");
-    return;
-  }
-
-  // per ogni prodotto, recupero i lotti
-  const righeHTML = [];
-  for (const r of riepilogo) {
-    try {
-      const res = await fetch(`${API_BASE}/riepilogo/${r.id}`);
-      const lotti = res.ok ? await res.json() : [];
-      righeHTML.push({ prodotto: r, lotti });
-    } catch {
-      righeHTML.push({ prodotto: r, lotti: [] });
-    }
-  }
-
-  let html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <meta charset="UTF-8" />
-      <title>Riepilogo Magazzino</title>
-      <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { margin: 0; }
-        .total { margin: 15px 0; font-size: 16px; font-weight: bold; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
-        th { background: #6366f1; color: white; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .prodotto-row { background:#e5e7eb;font-weight:bold; }
-        .price { text-align:right; min-width:80px; }
-      </style>
-    </head>
-    <body>
-      <div class="header">
-        <h1>Riepilogo Magazzino (Prodotti + Lotti)</h1>
-        <p>Data stampa: ${new Date().toLocaleString("it-IT")}</p>
-      </div>
-      <div class="total">
-        Valore totale magazzino: ${
-          document.getElementById("riepilogo-valore-totale")?.textContent ||
-          "€ 0,00"
-        }<br/>
-        Giacenza complessiva: ${
-          document.getElementById("riepilogo-giacenza-totale")?.textContent ||
-          "0"
+          printContent += `
+              </tbody>
+            </table>
+          `
+        } else {
+          printContent += '<p class="no-lotti">Nessun lotto disponibile</p>'
         }
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Prodotto</th>
-            <th>Giacenza Totale</th>
-            <th>Valore Totale</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
+      } else {
+        printContent += '<p class="no-lotti">Prodotto non disponibile in magazzino</p>'
+      }
 
-  righeHTML.forEach(({ prodotto, lotti }) => {
-    html += `
-      <tr class="prodotto-row">
-        <td>${prodotto.nome}</td>
-        <td>${prodotto.giacenza}</td>
-        <td class="price">€ ${formatNumber(prodotto.valore_totale)}</td>
-      </tr>
-    `;
-
-    if (lotti && lotti.length > 0) {
-      html += `
-        <tr>
-          <td colspan="3">
-            <table style="width:100%;border-collapse:collapse;margin-top:5px;">
-              <thead>
-                <tr>
-                  <th>Data Carico</th>
-                  <th>Quantità Rimanente</th>
-                  <th>Prezzo Unitario</th>
-                  <th>Valore Lotto</th>
-                  <th>Fattura/Doc.</th>
-                  <th>Fornitore</th>
-                </tr>
-              </thead>
-              <tbody>
-      `;
-      lotti.forEach((lotto) => {
-        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
-        html += `
-          <tr>
-            <td>${formatDate(lotto.data_carico)}</td>
-            <td>${lotto.quantita_rimanente}</td>
-            <td class="price">€ ${formatNumber(lotto.prezzo)}</td>
-            <td class="price">€ ${formatNumber(valoreLotto)}</td>
-            <td>${displayValue(lotto.fattura_doc)}</td>
-            <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-          </tr>
-        `;
-      });
-      html += `
-              </tbody>
-            </table>
-          </td>
-        </tr>
-      `;
+      printContent += `</div>`
     }
-  });
 
-  html += `
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
+    printContent += `
+      </body>
+      </html>
+    `
 
-  const frame = document.getElementById("print-frame");
-  frame.srcdoc = html;
-  setTimeout(() => frame.contentWindow.print(), 400);
+    const printWindow = window.open("", "", "width=900,height=700")
+    printWindow.document.write(printContent)
+    printWindow.document.close()
+    printWindow.print()
+  } catch (error) {
+    console.error("Errore nella stampa:", error)
+    alert("Errore durante la stampa del riepilogo")
+  }
 }
 
-// ================== STORICO MAGAZZINO ==================
-async function caricaStoricoGiacenza() {
-  const data = document.getElementById("storico-data").value;
+// ==================== STORICO ====================
+async function loadStorico() {
+  const data = document.getElementById("storicoDate").value
   if (!data) {
-    mostraAlert("warning", "Seleziona una data", "storico");
-    return;
+    alert("Seleziona una data")
+    return
   }
 
   try {
-    const res = await fetch(`${API_BASE}/storico-giacenza/${data}`);
-    if (!res.ok) throw new Error("Errore recupero storico");
-    const result = await res.json();
-    storico = result.riepilogo || [];
-    visualizzaStorico(result.valore_totale || 0);
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento dello storico", "storico");
+    const res = await fetch(`${API_URL}/magazzino/storico-giacenza/${data}`)
+    const result = await res.json()
+
+    document.getElementById("valoreStorico").textContent =
+      `€ ${Number.parseFloat(result.valore_totale || 0).toFixed(2)}`
+    renderStorico(result.riepilogo || [])
+  } catch (error) {
+    console.error("Errore caricamento storico:", error)
+    alert("Errore nel caricamento dello storico")
   }
 }
 
-function visualizzaStorico(valoreTotale) {
-  const tbody = document.getElementById("storico-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderStorico(storico) {
+  const tbody = document.getElementById("storicoTableBody")
 
-  let giacenzaTotale = 0;
+  if (storico.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" class="text-center">Nessun dato disponibile per questa data</td></tr>'
+    return
+  }
 
-  storico.forEach((s) => {
-    const giac = s.giacenza || 0;
-    giacenzaTotale += giac;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${s.nome}</td>
-      <td style="text-align:right"><strong>${giac}</strong></td>
-      <td style="text-align:right"><strong>${formatNumber(
-        s.valore_totale
-      )} €</strong></td>
-      <td>
-        <button class="btn btn-secondary btn-small" onclick="apriDettaglioLottiStorico(${
-          s.id
-        }, '${s.nome}')">👁️ Dettagli Lotti</button>
+  tbody.innerHTML = storico
+    .map(
+      (s) => `
+    <tr>
+      <td><strong>${s.nome}</strong></td>
+      <td>${s.marca_nome || '<span style="color: #999;">-</span>'}</td>
+      <td>${s.descrizione ? `<small>${s.descrizione.substring(0, 40)}${s.descrizione.length > 40 ? "..." : ""}</small>` : '<span style="color: #999;">-</span>'}</td>
+      <td><span class="badge ${s.giacenza > 0 ? "badge-success" : "badge-danger"}">${s.giacenza}</span></td>
+      <td><strong>€ ${Number.parseFloat(s.valore_totale).toFixed(2)}</strong></td>
+      <td class="text-right">
+        ${s.giacenza > 0 && s.lotti_storici ? `<button class="btn btn-sm btn-secondary" onclick="showDettagliLottiStorico(${s.id}, '${s.nome.replace(/'/g, "\\'")}', ${JSON.stringify(s.lotti_storici).replace(/'/g, "&#39;")})">Dettagli</button>` : ""}
       </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const valElem = document.getElementById("storico-valore-totale");
-  const giacElem = document.getElementById("storico-giacenza-totale");
-  const valLegacy = document.getElementById("valore-magazzino-storico");
-
-  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
-  if (giacElem) giacElem.textContent = giacenzaTotale;
-  if (valLegacy) valLegacy.textContent = `€ ${formatNumber(valoreTotale)}`;
+    </tr>
+  `,
+    )
+    .join("")
 }
 
-async function apriDettaglioLottiStorico(prodottoId, nomeProdotto) {
-  const data = document.getElementById("storico-data").value;
-  if (!data) return;
+function showDettagliLottiStorico(prodottoId, prodottoNome, lotti) {
+  const modal = document.getElementById("modalDettagli")
+  const title = document.getElementById("modalDettagliTitle")
+  const tbody = document.getElementById("dettagliTableBody")
 
-  const prodotto = storico.find((s) => s.id === prodottoId);
-  if (!prodotto) return;
+  title.textContent = `Dettagli Lotti Storico - ${prodottoNome}`
 
-  const titolo = document.getElementById("dettaglio-prodotto-nome-storico");
-  const dataLabel = document.getElementById("data-dettaglio-storico");
-  const tbody = document.getElementById("lotti-body-storico");
-
-  if (titolo) titolo.textContent = `Dettaglio Lotti Storico - ${nomeProdotto}`;
-  if (dataLabel) dataLabel.textContent = `Data: ${formatDate(data)}`;
-
-  if (tbody) {
-    tbody.innerHTML = "";
-    (prodotto.lotti_storici || []).forEach((lotto) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${formatDate(lotto.data_carico)}</td>
-        <td style="text-align:right">${lotto.quantita_rimanente}</td>
-        <td style="text-align:right">${formatNumber(lotto.prezzo)} €</td>
-        <td>${displayValue(lotto.fattura_doc)}</td>
-        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
+  if (!lotti || lotti.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center">Nessun lotto disponibile</td></tr>'
+  } else {
+    tbody.innerHTML = lotti
+      .map(
+        (l) => `
+      <tr>
+        <td>${l.id}</td>
+        <td>${l.quantita_rimanente}</td>
+        <td>€ ${Number.parseFloat(l.prezzo).toFixed(2)}</td>
+        <td><strong>€ ${(l.quantita_rimanente * l.prezzo).toFixed(2)}</strong></td>
+        <td>${new Date(l.data_carico).toLocaleDateString("it-IT")}</td>
+        <td>${l.fattura_doc || '<span style="color: #999;">-</span>'}</td>
+        <td>${l.fornitore || '<span style="color: #999;">-</span>'}</td>
+      </tr>
+    `,
+      )
+      .join("")
   }
 
-  document.getElementById("modal-dettaglio-lotti-storico").style.display =
-    "block";
+  modal.classList.add("active")
 }
 
-function chiudiModalDettaglioLottiStorico() {
-  document.getElementById("modal-dettaglio-lotti-storico").style.display =
-    "none";
-}
-
-// stampa storico con totali in alto e dettaglio per prodotto + lotti
-function stampaStorico() {
-  if (!storico || storico.length === 0) {
-    mostraAlert(
-      "warning",
-      "Carica i dati dello storico prima di stampare",
-      "storico"
-    );
-    return;
+function printStorico() {
+  const date = document.getElementById("storicoDate").value
+  if (!date) {
+    alert("Seleziona una data prima di stampare!")
+    return
   }
 
-  const data = document.getElementById("storico-data").value;
-  const valoreTotaleText =
-    document.getElementById("storico-valore-totale")?.textContent || "€ 0,00";
-  const giacenzaTotaleText =
-    document.getElementById("storico-giacenza-totale")?.textContent || "0";
+  const valoreTotale = document.getElementById("valoreStorico").textContent
 
-  let html = `
+  let printContent = `
     <!DOCTYPE html>
     <html>
     <head>
-      <meta charset="UTF-8" />
-      <title>Storico Magazzino ${data}</title>
+      <title>Storico Magazzino - ${new Date(date).toLocaleDateString("it-IT")}</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        .header { text-align: center; margin-bottom: 20px; }
-        .header h1 { margin: 0; }
-        .total { margin: 15px 0; font-size: 16px; font-weight: bold; }
+        h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+        .info { margin: 20px 0; font-size: 14px; }
+        .prodotto-block { margin-bottom: 30px; page-break-inside: avoid; }
+        .prodotto-header { 
+          background-color: #e0e7ff; 
+          padding: 10px; 
+          margin-bottom: 10px;
+          border-left: 4px solid #4F46E5;
+        }
+        .prodotto-info { display: flex; justify-content: space-between; margin: 5px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
-        th, td { border: 1px solid #ddd; padding: 8px; font-size: 12px; }
-        th { background: #6366f1; color: white; }
-        tr:nth-child(even) { background: #f9f9f9; }
-        .prodotto-row { background:#e5e7eb;font-weight:bold; }
-        .price { text-align:right; min-width:80px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
+        th { background-color: #6366f1; color: white; }
+        .lotto-row { background-color: #f9fafb; }
+        .no-data { text-align: center; color: #999; padding: 20px; }
       </style>
     </head>
     <body>
-      <div class="header">
-        <h1>📅 Storico Magazzino</h1>
-        <p>Data: ${formatDate(data)}</p>
+      <h1>Storico Giacenze Magazzino</h1>
+      <div class="info">
+        <p><strong>Data Storico:</strong> ${new Date(date).toLocaleDateString("it-IT")}</p>
+        <p><strong>Valore Totale:</strong> ${valoreTotale}</p>
+        <p><strong>Data Stampa:</strong> ${new Date().toLocaleDateString("it-IT")} ${new Date().toLocaleTimeString("it-IT")}</p>
       </div>
-      <div class="total">
-        💰 Valore Totale Magazzino: <strong>${valoreTotaleText}</strong><br/>
-        🧮 Giacenza complessiva: <strong>${giacenzaTotaleText}</strong>
-      </div>
-      <table>
-        <thead>
-          <tr>
-            <th>Prodotto</th>
-            <th>Giacenza Totale</th>
-            <th>Valore Totale (Costo)</th>
-          </tr>
-        </thead>
-        <tbody>
-  `;
+  `
 
-  storico.forEach((s) => {
-    html += `
-      <tr class="prodotto-row">
-        <td>${s.nome}</td>
-        <td>${s.giacenza}</td>
-        <td class="price">€ ${formatNumber(s.valore_totale)}</td>
-      </tr>
-    `;
+  fetch(`${API_URL}/magazzino/storico-giacenza/${date}`)
+    .then((res) => res.json())
+    .then((data) => {
+      if (!data.riepilogo || data.riepilogo.length === 0) {
+        printContent += '<div class="no-data">Nessun dato disponibile per questa data</div>'
+      } else {
+        data.riepilogo.forEach((prodotto) => {
+          if (prodotto.giacenza > 0) {
+            printContent += `
+              <div class="prodotto-block">
+                <div class="prodotto-header">
+                  <div class="prodotto-info">
+                    <span><strong>Prodotto:</strong> ${prodotto.nome}</span>
+                    <span><strong>Giacenza Totale:</strong> ${prodotto.giacenza}</span>
+                  </div>
+                  <div class="prodotto-info">
+                    <span><strong>Marca:</strong> ${prodotto.marca_nome || "-"}</span>
+                    <span><strong>Valore Totale:</strong> € ${Number.parseFloat(prodotto.valore_totale).toFixed(2)}</span>
+                  </div>
+                  ${prodotto.descrizione ? `<div class="prodotto-info"><span><strong>Descrizione:</strong> ${prodotto.descrizione}</span></div>` : ""}
+                </div>
+            `
 
-    if (s.lotti_storici && s.lotti_storici.length > 0) {
-      html += `
-        <tr>
-          <td colspan="3">
-            <table style="width:100%;border-collapse:collapse;margin-top:5px;">
-              <thead>
-                <tr>
-                  <th>Data Carico</th>
-                  <th>Quantità Rimanente</th>
-                  <th>Prezzo Unitario</th>
-                  <th>Valore Lotto</th>
-                  <th>Fattura/Doc.</th>
-                  <th>Fornitore</th>
-                </tr>
-              </thead>
-              <tbody>
-      `;
-      s.lotti_storici.forEach((lotto) => {
-        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
-        html += `
-          <tr>
-            <td>${formatDate(lotto.data_carico)}</td>
-            <td>${lotto.quantita_rimanente}</td>
-            <td class="price">€ ${formatNumber(lotto.prezzo)}</td>
-            <td class="price">€ ${formatNumber(valoreLotto)}</td>
-            <td>${displayValue(lotto.fattura_doc)}</td>
-            <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-          </tr>
-        `;
-      });
-      html += `
-              </tbody>
-            </table>
-          </td>
-        </tr>
-      `;
-    }
-  });
+            if (prodotto.lotti_storici && prodotto.lotti_storici.length > 0) {
+              printContent += `
+                <table>
+                  <thead>
+                    <tr>
+                      <th>ID Lotto</th>
+                      <th>Quantità</th>
+                      <th>Prezzo Unit.</th>
+                      <th>Valore</th>
+                      <th>Data Carico</th>
+                      <th>Documento</th>
+                      <th>Fornitore</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+              `
 
-  html += `
-        </tbody>
-      </table>
-    </body>
-    </html>
-  `;
+              prodotto.lotti_storici.forEach((lotto) => {
+                printContent += `
+                  <tr class="lotto-row">
+                    <td>${lotto.id}</td>
+                    <td>${lotto.quantita_rimanente}</td>
+                    <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
+                    <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
+                    <td>${new Date(lotto.data_carico).toLocaleDateString("it-IT")}</td>
+                    <td>${lotto.fattura_doc || "-"}</td>
+                    <td>${lotto.fornitore || "-"}</td>
+                  </tr>
+                `
+              })
 
-  const frame = document.getElementById("print-frame");
-  frame.srcdoc = html;
-  setTimeout(() => frame.contentWindow.print(), 400);
+              printContent += `
+                  </tbody>
+                </table>
+              `
+            } else {
+              printContent += '<p style="margin: 10px 0; color: #999;">Nessun lotto disponibile</p>'
+            }
+
+            printContent += `</div>`
+          }
+        })
+      }
+
+      printContent += `
+      </body>
+      </html>
+      `
+
+      const printWindow = window.open("", "", "width=900,height=700")
+      printWindow.document.write(printContent)
+      printWindow.document.close()
+      printWindow.print()
+    })
+    .catch((error) => {
+      console.error("Errore nella stampa:", error)
+      alert("Errore durante la stampa dello storico")
+    })
 }
 
-// ================== UTENTI ==================
-async function caricaUtenti() {
+// ==================== UTENTI ====================
+async function loadUtenti() {
   try {
-    const res = await fetch(`${API_BASE}/utenti`);
-    if (!res.ok) throw new Error("Errore recupero utenti");
-    utenti = await res.json();
-    visualizzaUtenti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento utenti", "utenti");
+    const res = await fetch(`${API_URL}/utenti`)
+    utenti = await res.json()
+    renderUtenti()
+  } catch (error) {
+    console.error("Errore caricamento utenti:", error)
   }
 }
 
-function visualizzaUtenti() {
-  const tbody = document.getElementById("utenti-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
+function renderUtenti() {
+  const tbody = document.getElementById("utentiTableBody")
 
-  utenti.forEach((u) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${u.username}</td>
-      <td>
-        <button class="btn btn-secondary btn-small" onclick="apriModalModificaUtente(${u.id})">✏️ Modifica</button>
-        <button class="btn btn-danger btn-small" onclick="eliminaUtente(${u.id})">🗑️ Elimina</button>
+  if (utenti.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="3" class="text-center">Nessun utente presente</td></tr>'
+    return
+  }
+
+  tbody.innerHTML = utenti
+    .map(
+      (u) => `
+    <tr>
+      <td>${u.id}</td>
+      <td><strong>${u.username}</strong></td>
+      <td class="text-right">
+        <button class="btn-icon" onclick="editUser(${u.id})" title="Modifica">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+          </svg>
+        </button>
+        <button class="btn-icon" onclick="deleteUser(${u.id})" title="Elimina">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
       </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const tot = document.getElementById("total-utenti");
-  if (tot) tot.textContent = utenti.length;
+    </tr>
+  `,
+    )
+    .join("")
 }
 
-async function aggiungiUtente() {
-  const usernameRaw = document.getElementById("nuovo-username").value;
-  const password = document.getElementById("nuova-password").value;
+function openUserModal(user = null) {
+  const modal = document.getElementById("modalUser")
+  const title = document.getElementById("modalUserTitle")
+  const form = document.getElementById("formUser")
+  const passwordOptional = document.getElementById("passwordOptional")
+  const passwordInput = document.getElementById("userPassword")
 
-  const username = sanitizeInputText(usernameRaw);
+  form.reset()
 
-  if (!username || !password) {
-    mostraAlert("warning", "Inserisci username e password", "utenti");
-    return;
+  if (user) {
+    title.textContent = "Modifica Utente"
+    document.getElementById("userId").value = user.id
+    document.getElementById("userUsername").value = user.username
+    passwordOptional.textContent = "(opzionale)"
+    passwordInput.required = false
+  } else {
+    title.textContent = "Nuovo Utente"
+    document.getElementById("userId").value = ""
+    passwordOptional.textContent = "*"
+    passwordInput.required = true
   }
 
-  if (
-    password.length < 8 ||
-    !/[A-Z]/.test(password) ||
-    !/[a-z]/.test(password) ||
-    !/[0-9]/.test(password)
-  ) {
-    mostraAlert(
-      "warning",
-      "Password debole: min 8 caratteri, maiuscola, minuscola, numero",
-      "utenti"
-    );
-    return;
-  }
+  modal.classList.add("active")
+}
+
+function closeUserModal() {
+  document.getElementById("modalUser").classList.remove("active")
+}
+
+function editUser(id) {
+  const user = utenti.find((u) => u.id === id)
+  if (user) openUserModal(user)
+}
+
+async function deleteUser(id) {
+  if (!confirm("Sei sicuro di voler eliminare questo utente?")) return
 
   try {
-    const res = await fetch(`${API_BASE}/utenti`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert("error", data.error || "Errore creazione utente", "utenti");
-      return;
+    const res = await fetch(`${API_URL}/utenti/${id}`, { method: "DELETE" })
+    const data = await res.json()
+
+    if (res.ok) {
+      alert("Utente eliminato con successo!")
+      loadUtenti()
+    } else {
+      alert(data.error || "Errore durante l'eliminazione")
     }
-
-    mostraAlert("success", "Utente creato con successo", "utenti");
-    document.getElementById("nuovo-username").value = "";
-    document.getElementById("nuova-password").value = "";
-    caricaUtenti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "utenti");
+  } catch (error) {
+    alert("Errore di connessione")
   }
 }
 
-function apriModalModificaUtente(id) {
-  const utente = utenti.find((u) => u.id === id);
-  if (!utente) return;
+document.getElementById("formUser").addEventListener("submit", async (e) => {
+  e.preventDefault()
 
-  utenteInModifica = id;
-  document.getElementById("modifica-utente-id").textContent = id;
-  document.getElementById("modifica-username").value = utente.username;
-  document.getElementById("modifica-password").value = "";
-  document.getElementById("modal-modifica-utente").style.display = "block";
-}
+  const id = document.getElementById("userId").value
+  const username = document.getElementById("userUsername").value.trim()
+  const password = document.getElementById("userPassword").value
 
-function chiudiModalUtente() {
-  utenteInModifica = null;
-  document.getElementById("modal-modifica-utente").style.display = "none";
-}
+  const method = id ? "PUT" : "POST"
+  const url = id ? `${API_URL}/utenti/${id}` : `${API_URL}/utenti`
 
-async function salvaModificaUtente() {
-  if (!utenteInModifica) return;
-
-  const username = sanitizeInputText(
-    document.getElementById("modifica-username").value
-  );
-  const password = document.getElementById("modifica-password").value;
-
-  if (!username) {
-    mostraAlert("warning", "Username non valido", "utenti");
-    return;
-  }
-
-  if (password) {
-    if (
-      password.length < 8 ||
-      !/[A-Z]/.test(password) ||
-      !/[a-z]/.test(password) ||
-      !/[0-9]/.test(password)
-    ) {
-      mostraAlert(
-        "warning",
-        "Nuova password debole: min 8 caratteri, maiuscola, minuscola, numero",
-        "utenti"
-      );
-      return;
-    }
-  }
+  const body = { username }
+  if (password) body.password = password
 
   try {
-    const body = { username };
-    if (password) body.password = password;
-
-    const res = await fetch(`${API_BASE}/utenti/${utenteInModifica}`, {
-      method: "PUT",
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore aggiornamento utente",
-        "utenti"
-      );
-      return;
+    })
+
+    const data = await res.json()
+
+    if (res.ok) {
+      alert(id ? "Utente aggiornato!" : "Utente creato!")
+      closeUserModal()
+      loadUtenti()
+    } else {
+      alert(data.error || "Errore durante il salvataggio")
     }
-
-    mostraAlert("success", "Utente aggiornato", "utenti");
-    chiudiModalUtente();
-    caricaUtenti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "utenti");
+  } catch (error) {
+    alert("Errore di connessione")
   }
-}
-
-async function eliminaUtente(id) {
-  if (!confirm("Eliminare l'utente selezionato?")) return;
-
-  try {
-    const res = await fetch(`${API_BASE}/utenti/${id}`, { method: "DELETE" });
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore eliminazione utente",
-        "utenti"
-      );
-      return;
-    }
-
-    mostraAlert("success", "Utente eliminato", "utenti");
-    caricaUtenti();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "utenti");
-  }
-}
-
-// ================== INIT ==================
-window.addEventListener("load", () => {
-  // imposta utente (se vuoi leggere da localStorage qui puoi)
-  document.getElementById("user-display").textContent = "Utente: Admin";
-
-  const oggi = new Date().toISOString().slice(0, 10);
-  const inputDataMov = document.getElementById("dato-data");
-  const inputDataStorico = document.getElementById("storico-data");
-  if (inputDataMov) inputDataMov.value = oggi;
-  if (inputDataStorico) inputDataStorico.value = oggi;
-
-  caricaProdotti();
-  caricaDati();
-  caricaRiepilogo();
-  caricaUtenti();
-
-  // ripristina ultima tab aperta (di default 'prodotti')
-  let lastTab = "prodotti";
-  try {
-    const saved = localStorage.getItem("magazzino_last_tab");
-    if (saved) lastTab = saved;
-  } catch (e) {
-    console.warn("localStorage non disponibile:", e);
-  }
-
-  switchTab(lastTab);
-});
-
-// chiusura modali cliccando fuori
-window.addEventListener("click", (event) => {
-  const modalProd = document.getElementById("modal-modifica-prodotto");
-  const modalUt = document.getElementById("modal-modifica-utente");
-  const modalDett = document.getElementById("modal-dettaglio-lotti");
-  const modalDettStorico = document.getElementById(
-    "modal-dettaglio-lotti-storico"
-  );
-
-  [modalProd, modalUt, modalDett, modalDettStorico].forEach((modal) => {
-    if (modal && event.target === modal) {
-      modal.style.display = "none";
-    }
-  });
-});
-
-function popolaSelectProdotti() {
-  const select = document.getElementById("dato-prodotto");
-  if (!select) return;
-
-  select.innerHTML = `<option value="">Seleziona prodotto...</option>`;
-
-  prodotti.forEach((p) => {
-    const giac = p.giacenza || 0;
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = `${p.nome} (${giac})`; // <-- numero tra parentesi
-    select.appendChild(opt);
-  });
-}
-
-function visualizzaRiepilogo() {
-  const tbody = document.getElementById("riepilogo-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  let valoreTotale = 0;
-  let giacenzaTotale = 0;
-
-  riepilogo.forEach((r) => {
-    const giac = r.giacenza || 0;
-    const val = r.valore_totale || 0;
-    giacenzaTotale += giac;
-    valoreTotale += val;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.nome}</td>
-      <td style="text-align:right"><strong>${giac}</strong></td>
-      <td style="text-align:right"><strong>${formatNumber(val)} €</strong></td>
-      <td>
-        ${
-          giac > 0
-            ? `<button class="btn btn-secondary btn-small" onclick="apriDettaglioLotti(${r.id}, '${r.nome}')">👁️ Dettagli Lotti</button>`
-            : ""
-        }
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const valElem = document.getElementById("riepilogo-valore-totale");
-  const giacElem = document.getElementById("riepilogo-giacenza-totale");
-  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
-  if (giacElem) giacElem.textContent = giacenzaTotale;
-}
-
-// ================== NAVIGAZIONE TABS (con localStorage) ==================
-function switchTab(tabName) {
-  // salva l'ultima tab scelta in localStorage
-  try {
-    localStorage.setItem("magazzino_last_tab", tabName);
-  } catch (e) {
-    console.warn("localStorage non disponibile:", e);
-  }
-
-  // Nascondo tutte le sezioni
-  document
-    .querySelectorAll(".section")
-    .forEach((s) => s.classList.remove("active"));
-
-  // Tolgo "active" da tutti i bottoni tab
-  document
-    .querySelectorAll(".tab")
-    .forEach((t) => t.classList.remove("active"));
-
-  // Mostro la sezione selezionata
-  const section = document.getElementById(`${tabName}-section`);
-  if (section) section.classList.add("active");
-
-  // Evidenzio il bottone della tab selezionata
-  const tabs = document.querySelectorAll(".tabs .tab");
-  tabs.forEach((btn) => {
-    if (btn.getAttribute("onclick") === `switchTab('${tabName}')`) {
-      btn.classList.add("active");
-    }
-  });
-
-  // Caricamenti automatici per tab
-  if (tabName === "prodotti") caricaProdotti();
-  if (tabName === "dati") caricaDati();
-  if (tabName === "riepilogo") caricaRiepilogo();
-  if (tabName === "storico") {
-    // qui non carico subito, aspetto che tu scelga la data
-  }
-  if (tabName === "utenti") caricaUtenti();
-}
-
-
-// Funzione di formattazione per quantità con decimali
-function formatQuantity(value) {
-  if (value === null || typeof value === "undefined" || isNaN(value)) {
-    return "0";
-  }
-  const num = Number(value);
-  // Se è un numero intero, mostra senza decimali, altrimenti mostra i decimali
-  return num % 1 === 0 ? num.toString() : num.toFixed(3).replace(/\.?0+$/, '');
-}
-
-// MODIFICA nella funzione aggiungiDato()
-async function aggiungiDato() {
-  const tipo = document.getElementById("dato-tipo").value;
-  const prodottoId = document.getElementById("dato-prodotto").value;
-  const dataMov = document.getElementById("dato-data").value;
-  const quantitaInput = document.getElementById("dato-quantita").value;
-  let prezzo = document.getElementById("dato-prezzo").value;
-  const fattura = document.getElementById("dato-fattura").value;
-  const fornitore = document.getElementById("dato-fornitore").value;
-
-  if (!prodottoId || !dataMov || !quantitaInput) {
-    mostraAlert("warning", "Compila tutti i campi obbligatori", "dati");
-    return;
-  }
-
-  // MODIFICA: Converte virgola in punto e accetta decimali
-  let qtaString = String(quantitaInput).replace(",", ".");
-  const quantita = parseFloat(qtaString);
-
-  if (isNaN(quantita) || quantita <= 0) {
-    mostraAlert("warning", "Quantità non valida", "dati");
-    return;
-  }
-
-  if (tipo === "carico") {
-    prezzo = String(prezzo).replace(",", ".");
-    const prc = parseFloat(prezzo);
-    if (!prc || prc <= 0) {
-      mostraAlert("warning", "Prezzo unitario carico non valido", "dati");
-      return;
-    }
-    prezzo = prc;
-  } else {
-    prezzo = null;
-  }
-
-  try {
-    const res = await fetch(`${API_BASE}/dati`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prodotto_id: Number(prodottoId),
-        tipo,
-        quantita,
-        prezzo,
-        data_movimento: dataMov,
-        fattura_doc: sanitizeInputText(fattura),
-        fornitore_cliente_id: sanitizeInputText(fornitore),
-      }),
-    });
-
-    const data = await res.json();
-    if (!res.ok) {
-      mostraAlert(
-        "error",
-        data.error || "Errore registrazione movimento",
-        "dati"
-      );
-      return;
-    }
-
-    mostraAlert("success", "Movimento registrato", "dati");
-
-    document.getElementById("dato-quantita").value = "";
-    document.getElementById("dato-prezzo").value = "";
-    document.getElementById("dato-fattura").value = "";
-    document.getElementById("dato-fornitore").value = "";
-
-    caricaDati();
-    caricaRiepilogo();
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore di comunicazione col server", "dati");
-  }
-}
-
-// MODIFICA nella funzione visualizzaDati()
-function visualizzaDati() {
-  const tbody = document.getElementById("dati-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  dati.forEach((d) => {
-    const isCarico = d.tipo === "carico";
-
-    const prezzoUnit = d.prezzo_unitario_scarico
-      ? d.prezzo_unitario_scarico
-      : d.prezzo;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${formatDate(d.data_movimento)}</td>
-      <td>${d.prodotto_nome}</td>
-      <td>${isCarico ? "CARICO" : "SCARICO"}</td>
-      <td style="text-align:right"><strong>${formatQuantity(d.quantita)}</strong></td>
-      <td style="text-align:right">${
-        prezzoUnit != null ? formatNumber(prezzoUnit) + " €" : "—"
-      }</td>
-      <td style="text-align:right">${
-        d.prezzo_totale != null ? formatNumber(d.prezzo_totale) + " €" : "—"
-      }</td>
-      <td>${displayValue(d.fattura_doc)}</td>
-      <td>${displayValue(d.fornitore_cliente_id)}</td>
-      <td>
-        <button class="btn btn-danger btn-small" onclick="eliminaDato(${
-          d.id
-        })">🗑️ Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-}
-
-// MODIFICA nelle funzioni di visualizzazione riepilogo e lotti
-function visualizzaRiepilogo() {
-  const tbody = document.getElementById("riepilogo-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  let valoreTotale = 0;
-  let giacenzaTotale = 0;
-
-  riepilogo.forEach((r) => {
-    const giac = r.giacenza || 0;
-    const val = r.valore_totale || 0;
-    giacenzaTotale += giac;
-    valoreTotale += val;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${r.nome}</td>
-      <td style="text-align:right"><strong>${formatQuantity(giac)}</strong></td>
-      <td style="text-align:right"><strong>${formatNumber(val)} €</strong></td>
-      <td>
-        ${
-          giac > 0
-            ? `<button class="btn btn-secondary btn-small" onclick="apriDettaglioLotti(${r.id}, '${r.nome}')">👁️ Dettagli Lotti</button>`
-            : ""
-        }
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const valElem = document.getElementById("riepilogo-valore-totale");
-  const giacElem = document.getElementById("riepilogo-giacenza-totale");
-  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
-  if (giacElem) giacElem.textContent = formatQuantity(giacenzaTotale);
-}
-
-async function apriDettaglioLotti(prodottoId, nomeProdotto) {
-  try {
-    const res = await fetch(`${API_BASE}/riepilogo/${prodottoId}`);
-    if (!res.ok) throw new Error("Errore recupero lotti");
-    const lotti = await res.json();
-
-    const titolo = document.getElementById("dettaglio-prodotto-nome");
-    const tbody = document.getElementById("lotti-body");
-
-    if (titolo) titolo.textContent = `Dettaglio Lotti - ${nomeProdotto}`;
-    if (tbody) {
-      tbody.innerHTML = "";
-      lotti.forEach((lotto) => {
-        const valoreLotto = lotto.quantita_rimanente * lotto.prezzo;
-
-        const tr = document.createElement("tr");
-        tr.innerHTML = `
-        <td>${formatDate(lotto.data_carico)}</td>
-        <td style="text-align:right"><strong>${formatQuantity(lotto.quantita_rimanente)}</strong></td>
-        <td style="text-align:right">${formatNumber(lotto.prezzo)} €</td>
-        <td style="text-align:right"><strong>${formatNumber(valoreLotto)} €</strong></td>
-        <td>${displayValue(lotto.fattura_doc)}</td>
-        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-    `;
-        tbody.appendChild(tr);
-      });
-    }
-
-    document.getElementById("modal-dettaglio-lotti").style.display = "block";
-  } catch (err) {
-    console.error(err);
-    mostraAlert("error", "Errore nel caricamento dei lotti", "riepilogo");
-  }
-}
-
-function visualizzaStorico(valoreTotale) {
-  const tbody = document.getElementById("storico-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  let giacenzaTotale = 0;
-
-  storico.forEach((s) => {
-    const giac = s.giacenza || 0;
-    giacenzaTotale += giac;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${s.nome}</td>
-      <td style="text-align:right"><strong>${formatQuantity(giac)}</strong></td>
-      <td style="text-align:right"><strong>${formatNumber(
-        s.valore_totale
-      )} €</strong></td>
-      <td>
-        <button class="btn btn-secondary btn-small" onclick="apriDettaglioLottiStorico(${
-          s.id
-        }, '${s.nome}')">👁️ Dettagli Lotti</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const valElem = document.getElementById("storico-valore-totale");
-  const giacElem = document.getElementById("storico-giacenza-totale");
-  const valLegacy = document.getElementById("valore-magazzino-storico");
-
-  if (valElem) valElem.textContent = `€ ${formatNumber(valoreTotale)}`;
-  if (giacElem) giacElem.textContent = formatQuantity(giacenzaTotale);
-  if (valLegacy) valLegacy.textContent = `€ ${formatNumber(valoreTotale)}`;
-}
-
-async function apriDettaglioLottiStorico(prodottoId, nomeProdotto) {
-  const data = document.getElementById("storico-data").value;
-  if (!data) return;
-
-  const prodotto = storico.find((s) => s.id === prodottoId);
-  if (!prodotto) return;
-
-  const titolo = document.getElementById("dettaglio-prodotto-nome-storico");
-  const dataLabel = document.getElementById("data-dettaglio-storico");
-  const tbody = document.getElementById("lotti-body-storico");
-
-  if (titolo) titolo.textContent = `Dettaglio Lotti Storico - ${nomeProdotto}`;
-  if (dataLabel) dataLabel.textContent = `Data: ${formatDate(data)}`;
-
-  if (tbody) {
-    tbody.innerHTML = "";
-    (prodotto.lotti_storici || []).forEach((lotto) => {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${formatDate(lotto.data_carico)}</td>
-        <td style="text-align:right"><strong>${formatQuantity(lotto.quantita_rimanente)}</strong></td>
-        <td style="text-align:right">${formatNumber(lotto.prezzo)} €</td>
-        <td>${displayValue(lotto.fattura_doc)}</td>
-        <td>${displayValue(lotto.fornitore_cliente_id)}</td>
-      `;
-      tbody.appendChild(tr);
-    });
-  }
-
-  document.getElementById("modal-dettaglio-lotti-storico").style.display =
-    "block";
-}
-
-function visualizzaProdotti() {
-  const tbody = document.getElementById("prodotti-body");
-  if (!tbody) return;
-  tbody.innerHTML = "";
-
-  let totalGiacenza = 0;
-
-  prodotti.forEach((p) => {
-    const giac = p.giacenza || 0;
-    totalGiacenza += giac;
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td>${p.nome}</td>
-      <td style="text-align:right"><strong>${formatQuantity(giac)}</strong></td>
-      <td>
-        <button class="btn btn-secondary btn-small" onclick="apriModalModificaProdotto(${p.id})">✏️ Modifica</button>
-        <button class="btn btn-danger btn-small" onclick="eliminaProdotto(${p.id})">🗑️ Elimina</button>
-      </td>
-    `;
-    tbody.appendChild(tr);
-  });
-
-  const totProd = document.getElementById("total-prodotti");
-  const totGiac = document.getElementById("total-giacenza");
-  if (totProd) totProd.textContent = prodotti.length;
-  if (totGiac) totGiac.textContent = formatQuantity(totalGiacenza);
-}
-
-function popolaSelectProdotti() {
-  const select = document.getElementById("dato-prodotto");
-  if (!select) return;
-
-  select.innerHTML = `<option value="">Seleziona prodotto...</option>`;
-
-  prodotti.forEach((p) => {
-    const giac = p.giacenza || 0;
-    const opt = document.createElement("option");
-    opt.value = p.id;
-    opt.textContent = `${p.nome} (${formatQuantity(giac)})`;
-    select.appendChild(opt);
-  });
-}
+})
