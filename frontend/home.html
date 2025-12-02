@@ -8,21 +8,24 @@
 </head>
 <body>
   <div class="app-container">
-    <!-- Added mobile menu toggle button -->
+    <!-- Added mobile menu toggle button with X animation -->
     <button class="mobile-menu-toggle" id="mobileMenuToggle">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="3" y1="12" x2="21" y2="12"/>
-        <line x1="3" y1="6" x2="21" y2="6"/>
-        <line x1="3" y1="18" x2="21" y2="18"/>
-      </svg>
+      <div class="hamburger">
+        <span class="line"></span>
+        <span class="line"></span>
+        <span class="line"></span>
+      </div>
     </button>
 
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-header">
-        <svg class="logo" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M12 2L2 7v10c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V7l-10-5z"/>
-        </svg>
+        <!-- Replaced SVG with image logo -->
+        <img 
+          src="/placeholder.svg?height=56&width=56" 
+          alt="Logo Magazzino Moto" 
+          class="logo"
+        />
         <h2>Magazzino Moto</h2>
       </div>
       

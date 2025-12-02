@@ -43,11 +43,13 @@ body {
   margin-bottom: 32px;
 }
 
+/* Updated styles for image logo instead of SVG */
 .logo-icon {
   width: 64px;
   height: 64px;
-  color: #667eea;
   margin-bottom: 16px;
+  object-fit: contain;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.1));
 }
 
 .login-header h1 {
