@@ -47,6 +47,16 @@ function limitDecimalInput(input) {
   input.value = value.replace(".", ",")
 }
 
+function formatNumber(value) {
+  if (value === null || value === undefined || value === "") return ""
+  const num = Number.parseInt(value)
+  if (isNaN(num)) return ""
+
+  // Converte il punto in virgola
+  const formatted = num.toString().replace(".", ",")
+  return formatted
+}
+
 // ==================== INIZIALIZZAZIONE ====================
 document.addEventListener("DOMContentLoaded", () => {
   const username = localStorage.getItem("username")
@@ -650,9 +660,10 @@ async function showGiacenzaInfo(prodottoId) {
       const giacenzaInfo = document.getElementById("giacenzaInfo")
       const giacenzaValue = document.getElementById("giacenzaValue")
 
+      const giacenzaFormatted = formatWithComma(prodotto.giacenza || 0)
       giacenzaValue.textContent = `${prodotto.nome} ${
         prodotto.marca_nome ? `(${prodotto.marca_nome})` : ""
-      } - Giacenza: ${prodotto.giacenza || 0} pz`
+      } - Giacenza: ${giacenzaFormatted} pz`
       giacenzaInfo.style.display = "block"
     }
   } catch (error) {
