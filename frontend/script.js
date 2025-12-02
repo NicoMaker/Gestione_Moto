@@ -21,6 +21,8 @@ document.addEventListener("DOMContentLoaded", () => {
     document.getElementById("currentUser").textContent = username
   }
 
+  const savedSection = localStorage.getItem("activeSection") || "marche"
+
   // Setup navigation
   document.querySelectorAll(".nav-item").forEach((item) => {
     item.addEventListener("click", (e) => {
@@ -33,6 +35,8 @@ document.addEventListener("DOMContentLoaded", () => {
       item.classList.add("active")
       document.getElementById(`section-${section}`).classList.add("active")
 
+      localStorage.setItem("activeSection", section)
+
       // Carica dati sezione
       if (section === "marche") loadMarche()
       if (section === "prodotti") loadProdotti()
@@ -42,14 +46,18 @@ document.addEventListener("DOMContentLoaded", () => {
     })
   })
 
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    if (item.dataset.section === savedSection) {
+      item.click()
+    }
+  })
+
   // Logout
   document.getElementById("logoutBtn").addEventListener("click", () => {
     localStorage.removeItem("username")
+    localStorage.removeItem("activeSection")
     window.location.href = "index.html"
   })
-
-  // Carica sezione iniziale
-  loadMarche()
 })
 
 // ==================== MARCHE ====================
@@ -426,92 +434,93 @@ function togglePrezzoField() {
   }
 }
 
-async function openMovimentoModal() {
+async function openMovimentoModal(movimento = null) {
   if (prodotti.length === 0) {
     const res = await fetch(`${API_URL}/prodotti`)
     prodotti = await res.json()
   }
 
   const modal = document.getElementById("modalMovimento")
+  const title = document.getElementById("modalMovimentoTitle")
   const form = document.getElementById("formMovimento")
   const selectProdotto = document.getElementById("movimentoProdotto")
 
   form.reset()
 
-  selectProdotto.innerHTML =
-    '<option value="">Seleziona prodotto...</option>' +
-    prodotti
-      .map((p) => `<option value="${p.id}">#${p.id} - ${p.nome}${p.marca_nome ? ` (${p.marca_nome})` : ""}</option>`)
-      .join("")
+  selectProdotto.innerHTML = prodotti
+    .map((p) => {
+      const marcaNome = p.marca_nome ? ` (${p.marca_nome})` : ""
+      return `<option value="${p.id}">${p.nome}${marcaNome}</option>`
+    })
+    .join("")
 
-  document.getElementById("movimentoData").valueAsDate = new Date()
-  document.getElementById("movimentoTipo").value = "carico"
+  title.textContent = "Nuovo Movimento"
+  document.getElementById("movimentoId").value = ""
+
   togglePrezzoField()
-
-  selectProdotto.addEventListener("change", mostraGiacenzaProdotto)
 
   modal.classList.add("active")
 }
 
 function closeMovimentoModal() {
-  document.getElementById("movimentoProdotto").removeEventListener("change", mostraGiacenzaProdotto)
   document.getElementById("modalMovimento").classList.remove("active")
 }
 
-async function mostraGiacenzaProdotto() {
-  const prodottoId = document.getElementById("movimentoProdotto").value
-  const giacenzaInfo = document.getElementById("giacenzaInfo")
-  const giacenzaValue = document.getElementById("giacenzaValue")
+function editMovimento(id) {
+  const movimento = movimenti.find((m) => m.id === id)
+  if (movimento) openMovimentoModal(movimento)
+}
 
-  if (!prodottoId) {
-    giacenzaInfo.style.display = "none"
-    return
-  }
+async function deleteMovimento(id) {
+  if (!confirm("Sei sicuro di voler eliminare questo movimento?")) return
 
-  const prodotto = prodotti.find((p) => p.id === Number.parseInt(prodottoId))
+  try {
+    const res = await fetch(`${API_URL}/dati/${id}`, { method: "DELETE" })
+    const data = await res.json()
 
-  if (prodotto) {
-    giacenzaValue.innerHTML = `
-      <div style="margin-bottom: 5px;">
-        <strong style="font-size: 14px; color: #0369a1;">#${prodotto.id} - ${prodotto.nome}</strong>
-        ${prodotto.marca_nome ? `<span style="color: #6366f1; font-size: 13px;">(${prodotto.marca_nome})</span>` : ""}
-      </div>
-      <div style="font-size: 28px; font-weight: bold; color: #0284c7;">${prodotto.giacenza || 0} unità</div>
-    `
-    giacenzaInfo.style.display = "block"
+    if (res.ok) {
+      alert("Movimento eliminato con successo!")
+      loadMovimenti()
+      loadProdotti()
+    } else {
+      alert(data.error || "Errore durante l'eliminazione")
+    }
+  } catch (error) {
+    alert("Errore di connessione")
   }
 }
 
 document.getElementById("formMovimento").addEventListener("submit", async (e) => {
   e.preventDefault()
 
+  const id = document.getElementById("movimentoId").value
   const prodotto_id = document.getElementById("movimentoProdotto").value
   const tipo = document.getElementById("movimentoTipo").value
-  const quantita = document.getElementById("movimentoQuantita").value
-  const prezzo = document.getElementById("movimentoPrezzo").value || null
+  const quantita = Number.parseFloat(document.getElementById("movimentoQuantita").value)
   const data_movimento = document.getElementById("movimentoData").value
-  const fattura_doc = document.getElementById("movimentoFattura").value.trim() || null
-  const fornitore = document.getElementById("movimentoFornitore").value.trim() || null
+  const prezzo = tipo === "carico" ? Number.parseFloat(document.getElementById("movimentoPrezzo").value) : null
+  const fattura_doc = tipo === "carico" ? document.getElementById("movimentoFattura").value.trim() || null : null
+  const fornitore = tipo === "carico" ? document.getElementById("movimentoFornitore").value.trim() || null : null
+
+  if (tipo === "carico" && (!fattura_doc || !fornitore)) {
+    alert("Documento e Fornitore sono obbligatori per i carichi!")
+    return
+  }
+
+  const method = id ? "PUT" : "POST"
+  const url = id ? `${API_URL}/dati/${id}` : `${API_URL}/dati`
 
   try {
-    const res = await fetch(`${API_URL}/dati`, {
-      method: "POST",
+    const res = await fetch(url, {
+      method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        prodotto_id,
-        tipo,
-        quantita,
-        prezzo,
-        data_movimento,
-        fattura_doc,
-        fornitore,
-      }),
+      body: JSON.stringify({ prodotto_id, tipo, quantita, prezzo, data_movimento, fattura_doc, fornitore }),
     })
 
     const data = await res.json()
 
     if (res.ok) {
-      alert("Movimento registrato!")
+      alert(id ? "Movimento aggiornato!" : "Movimento registrato!")
       closeMovimentoModal()
       loadMovimenti()
       loadProdotti()
@@ -522,6 +531,30 @@ document.getElementById("formMovimento").addEventListener("submit", async (e) =>
     alert("Errore di connessione")
   }
 })
+
+document.getElementById("movimentoProdotto")?.addEventListener("change", async (e) => {
+  const prodottoId = e.target.value
+  if (prodottoId) {
+    await showGiacenzaInfo(prodottoId)
+  } else {
+    document.getElementById("giacenzaInfo").style.display = "none"
+  }
+})
+
+async function showGiacenzaInfo(prodottoId) {
+  try {
+    const prodotto = prodotti.find((p) => p.id == prodottoId)
+    if (prodotto) {
+      const giacenzaInfo = document.getElementById("giacenzaInfo")
+      const giacenzaValue = document.getElementById("giacenzaValue")
+
+      giacenzaValue.textContent = `#${prodotto.id} - ${prodotto.nome} ${prodotto.marca_nome ? `(${prodotto.marca_nome})` : ""} - Giacenza: ${prodotto.giacenza || 0}`
+      giacenzaInfo.style.display = "block"
+    }
+  } catch (error) {
+    console.error("Errore caricamento giacenza:", error)
+  }
+}
 
 // ==================== RIEPILOGO ====================
 async function loadRiepilogo() {
