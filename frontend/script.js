@@ -235,7 +235,7 @@ function renderProdotti() {
       (p) => `
     <tr>
       <td><strong>${p.nome}</strong></td>
-      <td><span class="badge badge-marca">${p.marca_nome ? p.marca_nome.toUpperCase() : "N/A"}</span></td>
+      <td><span class="badge badge-marca">${p.marca_nome ? p.marca_nome : "N/A"}</span></td>
       <td><span class="badge-giacenza">${p.giacenza || 0} pz</span></td>
       <td>${p.descrizione || "-"}</td>
       <td class="text-right">
@@ -399,7 +399,7 @@ function renderMovimenti() {
       }</td>
       <td><span class="badge ${
         m.tipo === "carico" ? "badge-success" : "badge-danger"
-      }">${m.tipo.toUpperCase()}</span></td>
+      }">${m.tipo}</span></td>
       <td>${m.quantita} pz</td>
       <td>${
         m.tipo === "carico"
@@ -491,7 +491,7 @@ async function openMovimentoModal(movimento = null) {
     '<option value="">Seleziona prodotto...</option>' +
     prodotti
       .map((p) => {
-        const marcaNome = p.marca_nome ? ` (${p.marca_nome.toUpperCase()})` : ""
+        const marcaNome = p.marca_nome ? ` (${p.marca_nome})` : ""
         return `<option value="${p.id}">${p.nome}${marcaNome}</option>`
       })
       .join("")
@@ -637,7 +637,7 @@ function renderRiepilogo() {
   riepilogo.forEach((r) => {
     html += `
     <tr class="product-main-row">
-      <td><strong>${r.nome}</strong>${r.marca_nome ? ` <span class="badge-marca">(${r.marca_nome.toUpperCase()})</span>` : ""}</td>
+      <td><strong>${r.nome}</strong>${r.marca_nome ? ` <span class="badge-marca">(${r.marca_nome})</span>` : ""}</td>
       <td>${
         r.descrizione
           ? `<small>${r.descrizione.substring(0, 50)}${r.descrizione.length > 50 ? "..." : ""}</small>`
@@ -859,7 +859,7 @@ function renderStorico(storico) {
   storico.forEach((s) => {
     html += `
     <tr class="product-main-row">
-      <td><strong>${s.nome}</strong>${s.marca_nome ? ` <span class="badge-marca">(${s.marca_nome.toUpperCase()})</span>` : ""}</td>
+      <td><strong>${s.nome}</strong>${s.marca_nome ? ` <span class="badge-marca">(${s.marca_nome})</span>` : ""}</td>
       <td>${
         s.descrizione
           ? `<small>${s.descrizione.substring(0, 50)}${s.descrizione.length > 50 ? "..." : ""}</small>`
@@ -940,6 +940,8 @@ function printStorico() {
   }
 
   const valoreStoricoFiltrato = storico.reduce((sum, s) => sum + Number.parseFloat(s.valore_totale || 0), 0)
+  // CHANGE: Calcolo del totale pezzi in giacenza alla data storica
+  const totalePezzi = storico.reduce((sum, s) => sum + Number.parseInt(s.giacenza || 0), 0)
 
   let printContent = `
     <!DOCTYPE html>
@@ -969,6 +971,7 @@ function printStorico() {
       <h1>Storico Giacenze Magazzino</h1>
       <div class="info">
         <p><strong>Data Storico:</strong> ${new Date(date).toLocaleDateString("it-IT")}</p>
+        <p><strong>Totale Pezzi:</strong> ${totalePezzi} pz</p>
         <p><strong>Valore Totale (Filtrato):</strong> € ${valoreStoricoFiltrato.toFixed(2)}</p>
         <p><strong>Prodotti Visualizzati:</strong> ${storico.length}</p>
         <p><strong>Data Stampa:</strong> ${new Date().toLocaleDateString(
