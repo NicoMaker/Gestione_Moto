@@ -544,7 +544,6 @@ async function renderRiepilogo(riepilogo) {
               <table style="width: 100%; margin: 0; border: none;">
                 <thead>
                   <tr style="background-color: #e0e7ff;">
-                    <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">ID Lotto</th>
                     <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Quantità</th>
                     <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Prezzo Unit.</th>
                     <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Valore</th>
@@ -559,7 +558,6 @@ async function renderRiepilogo(riepilogo) {
           lotti.forEach((lotto) => {
             html += `
                   <tr>
-                    <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">${lotto.id}</td>
                     <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">${lotto.quantita_rimanente}</td>
                     <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
                     <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;"><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
@@ -650,7 +648,6 @@ async function printRiepilogo() {
             <table>
               <thead>
                 <tr>
-                  <th>ID Lotto</th>
                   <th>Quantità</th>
                   <th>Prezzo Unit.</th>
                   <th>Valore</th>
@@ -665,7 +662,6 @@ async function printRiepilogo() {
           lotti.forEach((lotto) => {
             printContent += `
               <tr class="lotto-row">
-                <td>${lotto.id}</td>
                 <td>${lotto.quantita_rimanente}</td>
                 <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
                 <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
@@ -755,7 +751,6 @@ function renderStorico(storico) {
           <table style="width: 100%; margin: 0; border: none;">
             <thead>
               <tr style="background-color: #e0e7ff;">
-                <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">ID Lotto</th>
                 <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Quantità</th>
                 <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Prezzo Unit.</th>
                 <th style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">Valore</th>
@@ -770,7 +765,6 @@ function renderStorico(storico) {
       s.lotti_storici.forEach((lotto) => {
         html += `
               <tr>
-                <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">${lotto.id}</td>
                 <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">${lotto.quantita_rimanente}</td>
                 <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;">€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
                 <td style="padding: 6px 12px; font-size: 11px; border: 1px solid #ddd;"><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
@@ -863,7 +857,6 @@ function printStorico() {
                 <table>
                   <thead>
                     <tr>
-                      <th>ID Lotto</th>
                       <th>Quantità</th>
                       <th>Prezzo Unit.</th>
                       <th>Valore</th>
@@ -878,7 +871,6 @@ function printStorico() {
               prodotto.lotti_storici.forEach((lotto) => {
                 printContent += `
                   <tr class="lotto-row">
-                    <td>${lotto.id}</td>
                     <td>${lotto.quantita_rimanente}</td>
                     <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
                     <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
