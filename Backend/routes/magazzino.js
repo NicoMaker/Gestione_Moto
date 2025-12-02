@@ -210,7 +210,7 @@ router.get("/storico-giacenza/:date", (req, res) => {
             descrizione: prodotto.descrizione,
             giacenza: totaleGiacenza,
             valore_totale: totaleValore,
-            lotti_storici: lottiRimanenti.map((l) => ({
+            lotti: lottiRimanenti.map((l) => ({
               id: l.id,
               quantita_rimanente: l.qty_rimanente,
               prezzo: l.prezzo,
