@@ -294,9 +294,10 @@ async function openProdottoModal(prodotto = null) {
 
   form.reset();
 
-  selectMarca.innerHTML = marche
-    .map((m) => `<option value="${m.id}">${m.nome}</option>`)
-    .join("");
+  // CHANGE: Aggiunta opzione vuota come prima scelta per non preselezionare nessuna marca
+  selectMarca.innerHTML =
+    '<option value="">Seleziona marca...</option>' +
+    marche.map((m) => `<option value="${m.id}">${m.nome}</option>`).join("");
 
   if (prodotto) {
     title.textContent = "Modifica Prodotto";
