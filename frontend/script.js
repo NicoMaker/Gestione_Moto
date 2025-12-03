@@ -962,19 +962,19 @@ function printStorico() {
       <title>Storico Giacenze</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; border-bottom: 2px solid #10B981; padding-bottom: 10px; }
+        h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
         .info { margin: 20px 0; font-size: 14px; }
         .prodotto-block { margin-bottom: 30px; page-break-inside: avoid; }
         .prodotto-header { 
-          background-color: #d1fae5; 
+          background-color: #e0e7ff; 
           padding: 10px; 
           margin-bottom: 10px;
-          border-left: 4px solid #10B981;
+          border-left: 4px solid #4F46E5;
         }
         .prodotto-info { display: flex; justify-content: space-between; margin: 5px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
-        th { background-color: #10B981; color: white; }
+        th { background-color: #6366f1; color: white; }
         .lotto-row { background-color: #f9fafb; }
         .no-lotti { text-align: center; color: #999; padding: 10px; }
       </style>
