@@ -436,26 +436,11 @@
         <div class="form-row">
           <div class="form-group">
             <label for="movimentoQuantita">Quantità *</label>
-            <input 
-              type="text" 
-              id="movimentoQuantita" 
-              inputmode="decimal" 
-              pattern="[0-9]+([,.][0-9]{1,2})?" 
-              required
-              placeholder="es: 10,50"
-            >
-            <small>Inserisci fino a 2 cifre decimali (es: 10,50)</small>
+            <input type="number" id="movimentoQuantita" step="0.01" required>
           </div>
           <div class="form-group" id="prezzoGroup">
             <label for="movimentoPrezzo">Prezzo Unitario *</label>
-            <input 
-              type="text" 
-              id="movimentoPrezzo" 
-              inputmode="decimal" 
-              pattern="[0-9]+([,.][0-9]{1,2})?"
-              placeholder="es: 25,99"
-            >
-            <small>Inserisci fino a 2 cifre decimali (es: 25,99)</small>
+            <input type="number" id="movimentoPrezzo" step="0.01">
           </div>
         </div>
         <div class="form-row">

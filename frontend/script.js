@@ -14,49 +14,6 @@ let allStorico = []
 let storico = []
 let allUtenti = []
 
-function formatWithComma(value) {
-  if (value === null || value === undefined || value === "") return ""
-  const num = typeof value === "string" ? Number.parseFloat(value.replace(",", ".")) : value
-  if (isNaN(num)) return ""
-
-  // Arrotonda a 2 decimali e converte il punto in virgola
-  const formatted = num
-    .toFixed(2)
-    .replace(/\.?0+$/, "")
-    .replace(".", ",")
-  return formatted
-}
-
-function limitDecimalInput(input) {
-  let value = input.value.replace(",", ".")
-
-  // Rimuove caratteri non validi (solo numeri, punto e virgola)
-  value = value.replace(/[^0-9.,]/g, "")
-
-  // Sostituisce multiple virgole/punti
-  const parts = value.split(/[.,]/)
-  if (parts.length > 2) {
-    value = parts[0] + "." + parts.slice(1).join("")
-  }
-
-  // Limita a 2 decimali dopo la virgola/punto
-  if (parts.length === 2 && parts[1].length > 2) {
-    value = parts[0] + "." + parts[1].substring(0, 2)
-  }
-
-  input.value = value.replace(".", ",")
-}
-
-function formatNumber(value) {
-  if (value === null || value === undefined || value === "") return ""
-  const num = Number.parseInt(value)
-  if (isNaN(num)) return ""
-
-  // Converte il punto in virgola
-  const formatted = num.toString().replace(".", ",")
-  return formatted
-}
-
 // ==================== INIZIALIZZAZIONE ====================
 document.addEventListener("DOMContentLoaded", () => {
   const username = localStorage.getItem("username")
@@ -124,16 +81,6 @@ document.addEventListener("DOMContentLoaded", () => {
     localStorage.removeItem("username")
     localStorage.removeItem("activeSection")
     window.location.href = "index.html"
-  })
-
-  document.addEventListener("input", (e) => {
-    if (
-      e.target.id === "movimentoQuantita" ||
-      e.target.id === "movimentoPrezzo" ||
-      e.target.classList.contains("numeric-input")
-    ) {
-      limitDecimalInput(e.target)
-    }
   })
 })
 
@@ -284,14 +231,12 @@ function renderProdotti() {
   }
 
   tbody.innerHTML = prodotti
-    .map((p) => {
-      const giacenzaFormatted = formatWithComma(p.giacenza || 0)
-
-      return `
+    .map(
+      (p) => `
     <tr>
       <td><strong>${p.nome}</strong></td>
       <td><span class="badge badge-marca">${p.marca_nome ? p.marca_nome.toUpperCase() : "N/A"}</span></td>
-      <td><span class="badge-giacenza">${giacenzaFormatted} pz</span></td>
+      <td><span class="badge-giacenza">${p.giacenza || 0} pz</span></td>
       <td>${p.descrizione || "-"}</td>
       <td class="text-right">
         <button class="btn-icon" onclick="editProdotto(${p.id})" title="Modifica">
@@ -307,8 +252,8 @@ function renderProdotti() {
         </button>
       </td>
     </tr>
-  `
-    })
+  `,
+    )
     .join("")
 }
 
@@ -455,15 +400,15 @@ function renderMovimenti() {
       <td><span class="badge ${
         m.tipo === "carico" ? "badge-success" : "badge-danger"
       }">${m.tipo.toUpperCase()}</span></td>
-      <td>${formatWithComma(m.quantita)} pz</td>
+      <td>${m.quantita} pz</td>
       <td>${
         m.tipo === "carico"
-          ? `€ ${formatWithComma(m.prezzo)}`
+          ? `€ ${Number.parseFloat(m.prezzo).toFixed(2)}`
           : m.prezzo_unitario_scarico
-            ? `€ ${formatWithComma(m.prezzo_unitario_scarico)}`
+            ? `€ ${Number.parseFloat(m.prezzo_unitario_scarico).toFixed(2)}`
             : "-"
       }</td>
-      <td><strong>€ ${formatWithComma(m.prezzo_totale || 0)}</strong></td>
+      <td><strong>€ ${Number.parseFloat(m.prezzo_totale || 0).toFixed(2)}</strong></td>
       <td>${new Date(m.data_movimento).toLocaleDateString("it-IT")}</td>
       <td>${m.fattura_doc || '<span style="color: #999;">-</span>'}</td>
       <td class="text-right">
@@ -593,16 +538,9 @@ document.getElementById("formMovimento").addEventListener("submit", async (e) =>
   const id = document.getElementById("movimentoId").value
   const prodotto_id = document.getElementById("movimentoProdotto").value
   const tipo = document.getElementById("movimentoTipo").value
-  const quantita = Number.parseFloat(
-    Number.parseFloat(document.getElementById("movimentoQuantita").value.replace(",", ".")).toFixed(2),
-  )
+  const quantita = Number.parseFloat(document.getElementById("movimentoQuantita").value)
   const data_movimento = document.getElementById("movimentoData").value
-  const prezzo =
-    tipo === "carico"
-      ? Number.parseFloat(
-          Number.parseFloat(document.getElementById("movimentoPrezzo").value.replace(",", ".")).toFixed(2),
-        )
-      : null
+  const prezzo = tipo === "carico" ? Number.parseFloat(document.getElementById("movimentoPrezzo").value) : null
   const fattura_doc = tipo === "carico" ? document.getElementById("movimentoFattura").value.trim() || null : null
   const fornitore = tipo === "carico" ? document.getElementById("movimentoFornitore").value.trim() || null : null
 
@@ -660,10 +598,9 @@ async function showGiacenzaInfo(prodottoId) {
       const giacenzaInfo = document.getElementById("giacenzaInfo")
       const giacenzaValue = document.getElementById("giacenzaValue")
 
-      const giacenzaFormatted = formatWithComma(prodotto.giacenza || 0)
       giacenzaValue.textContent = `${prodotto.nome} ${
         prodotto.marca_nome ? `(${prodotto.marca_nome})` : ""
-      } - Giacenza: ${giacenzaFormatted} pz`
+      } - Giacenza: ${prodotto.giacenza || 0} pz`
       giacenzaInfo.style.display = "block"
     }
   } catch (error) {
@@ -677,43 +614,50 @@ async function loadRiepilogo() {
     const res = await fetch(`${API_URL}/magazzino/riepilogo`)
     const data = await res.json()
 
-    document.getElementById("valoreTotale").textContent = `€ ${formatWithComma(data.valore_totale || 0)}`
+    allRiepilogo = data.riepilogo || []
+    riepilogo = allRiepilogo
 
-    allRiepilogo = data.riepilogo || [] // CHANGE: Salva tutte le marche in allRiepilogo
-    riepilogo = allRiepilogo // CHANGE: Reimposta riepilogo alla copia di allRiepilogo per il rendering iniziale
+    // CHANGE: Aggiorna il totale in base ai prodotti visibili
+    updateRiepilogoTotal()
     renderRiepilogo()
   } catch (error) {
     console.error("Errore caricamento riepilogo:", error)
   }
 }
 
+// CHANGE: Nuova funzione per aggiornare il totale del riepilogo
+function updateRiepilogoTotal() {
+  const valoreTotaleFiltrato = riepilogo.reduce((sum, r) => sum + Number.parseFloat(r.valore_totale || 0), 0)
+  document.getElementById("valoreTotale").textContent = `€ ${valoreTotaleFiltrato.toFixed(2)}`
+}
+
 function renderRiepilogo() {
   const tbody = document.getElementById("riepilogoTableBody")
 
   if (riepilogo.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="4" class="text-center">Nessun prodotto disponibile</td></tr>'
+    tbody.innerHTML = '<tr><td colspan="4" class="text-center">Nessun prodotto in magazzino</td></tr>'
     return
   }
 
   let html = ""
 
-  riepilogo.forEach((p) => {
+  riepilogo.forEach((r) => {
     html += `
     <tr class="product-main-row">
-      <td><strong>${p.nome}</strong>${
-        p.marca_nome ? ` <span class="badge-marca">(${p.marca_nome.toUpperCase()})</span>` : ""
+      <td><strong>${r.nome}</strong>${
+        r.marca_nome ? ` <span class="badge-marca">(${r.marca_nome.toUpperCase()})</span>` : ""
       }</td>
       <td>${
-        p.descrizione
-          ? `<small>${p.descrizione.substring(0, 50)}${p.descrizione.length > 50 ? "..." : ""}</small>`
+        r.descrizione
+          ? `<small>${r.descrizione.substring(0, 50)}${r.descrizione.length > 50 ? "..." : ""}</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${formatWithComma(p.giacenza)} pz</span></td>
-      <td><strong>€ ${formatWithComma(p.valore_totale)}</strong></td>
+      <td><span class="badge badge-giacenza">${r.giacenza} pz</span></td>
+      <td><strong>€ ${Number.parseFloat(r.valore_totale).toFixed(2)}</strong></td>
     </tr>
     `
 
-    if (p.giacenza > 0 && p.lotti && p.lotti.length > 0) {
+    if (r.giacenza > 0 && r.lotti && r.lotti.length > 0) {
       html += `
       <tr class="lotti-row">
         <td colspan="4" class="lotti-container">
@@ -733,12 +677,12 @@ function renderRiepilogo() {
               <tbody>
       `
 
-      p.lotti.forEach((lotto) => {
+      r.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${formatWithComma(lotto.quantita_rimanente)} pz</strong></td>
-                  <td>€ ${formatWithComma(lotto.prezzo)}</td>
-                  <td><strong>€ ${formatWithComma(lotto.quantita_rimanente * lotto.prezzo)}</strong></td>
+                  <td><strong>${lotto.quantita_rimanente} pz</strong></td>
+                  <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
+                  <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
                   <td>${new Date(lotto.data_carico).toLocaleDateString("it-IT")}</td>
                   <td>${lotto.fattura_doc || '<span style="color: #999;">-</span>'}</td>
                   <td>${lotto.fornitore || '<span style="color: #999;">-</span>'}</td>
@@ -759,21 +703,15 @@ function renderRiepilogo() {
   tbody.innerHTML = html
 }
 
-function toggleDettagli(productId) {
-  const lottiRow = document.getElementById(`lotti-${productId}`)
-  if (lottiRow) {
-    lottiRow.style.display = lottiRow.style.display === "none" ? "table-row" : "none"
-  }
-}
-
 document.getElementById("filterRiepilogo")?.addEventListener("input", (e) => {
   const searchTerm = e.target.value.toLowerCase()
   riepilogo = allRiepilogo.filter(
-    (p) =>
-      p.nome.toLowerCase().includes(searchTerm) ||
-      (p.marca_nome && p.marca_nome.toLowerCase().includes(searchTerm)) ||
-      (p.descrizione && p.descrizione.toLowerCase().includes(searchTerm)),
+    (r) =>
+      r.nome.toLowerCase().includes(searchTerm) ||
+      (r.marca_nome && r.marca_nome.toLowerCase().includes(searchTerm)) ||
+      (r.descrizione && r.descrizione.toLowerCase().includes(searchTerm)),
   )
+  updateRiepilogoTotal()
   renderRiepilogo()
 })
 
@@ -783,7 +721,7 @@ function printRiepilogo() {
     return
   }
 
-  const valoreTotaleFiltrato = riepilogo.reduce((sum, p) => sum + Number.parseFloat(p.valore_totale || 0), 0)
+  const valoreTotaleFiltrato = riepilogo.reduce((sum, r) => sum + Number.parseFloat(r.valore_totale || 0), 0)
 
   let printContent = `
     <!DOCTYPE html>
@@ -795,9 +733,9 @@ function printRiepilogo() {
         h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
         .info { margin: 20px 0; font-size: 14px; }
         .prodotto-block { margin-bottom: 30px; page-break-inside: avoid; }
-        .prodotto-header {
-          background-color: #e0e7ff;
-          padding: 10px;
+        .prodotto-header { 
+          background-color: #e0e7ff; 
+          padding: 10px; 
           margin-bottom: 10px;
           border-left: 4px solid #4F46E5;
         }
@@ -905,15 +843,22 @@ async function loadStorico() {
     const res = await fetch(`${API_URL}/magazzino/storico-giacenza/${data}`)
     const result = await res.json()
 
-    document.getElementById("valoreStorico").textContent = `€ ${formatWithComma(result.valore_totale || 0)}`
+    allStorico = result.riepilogo || []
+    storico = allStorico
 
-    allStorico = result.riepilogo || [] // CHANGE: Salva tutte le marche in allStorico
-    storico = allStorico // CHANGE: Reimposta storico alla copia di allStorico per il rendering iniziale
+    // CHANGE: Aggiorna il totale in base ai prodotti visibili
+    updateStoricoTotal()
     renderStorico(storico)
   } catch (error) {
     console.error("Errore caricamento storico:", error)
     alert("Errore nel caricamento dello storico")
   }
+}
+
+// CHANGE: Nuova funzione per aggiornare il totale dello storico
+function updateStoricoTotal() {
+  const valoreStoricoFiltrato = storico.reduce((sum, s) => sum + Number.parseFloat(s.valore_totale || 0), 0)
+  document.getElementById("valoreStorico").textContent = `€ ${valoreStoricoFiltrato.toFixed(2)}`
 }
 
 function renderStorico(storico) {
@@ -937,8 +882,8 @@ function renderStorico(storico) {
           ? `<small>${s.descrizione.substring(0, 50)}${s.descrizione.length > 50 ? "..." : ""}</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${formatWithComma(s.giacenza)} pz</span></td>
-      <td><strong>€ ${formatWithComma(s.valore_totale)}</strong></td>
+      <td><span class="badge-giacenza">${s.giacenza} pz</span></td>
+      <td><strong>€ ${Number.parseFloat(s.valore_totale).toFixed(2)}</strong></td>
     </tr>
     `
 
@@ -965,9 +910,9 @@ function renderStorico(storico) {
       s.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${formatWithComma(lotto.quantita_rimanente)} pz</strong></td>
-                  <td>€ ${formatWithComma(lotto.prezzo)}</td>
-                  <td><strong>€ ${formatWithComma(lotto.quantita_rimanente * lotto.prezzo)}</strong></td>
+                  <td><strong>${lotto.quantita_rimanente} pz</strong></td>
+                  <td>€ ${Number.parseFloat(lotto.prezzo).toFixed(2)}</td>
+                  <td><strong>€ ${(lotto.quantita_rimanente * lotto.prezzo).toFixed(2)}</strong></td>
                   <td>${new Date(lotto.data_carico).toLocaleDateString("it-IT")}</td>
                   <td>${lotto.fattura_doc || '<span style="color: #999;">-</span>'}</td>
                   <td>${lotto.fornitore || '<span style="color: #999;">-</span>'}</td>
@@ -996,45 +941,40 @@ document.getElementById("filterStorico")?.addEventListener("input", (e) => {
       (s.marca_nome && s.marca_nome.toLowerCase().includes(searchTerm)) ||
       (s.descrizione && s.descrizione.toLowerCase().includes(searchTerm)),
   )
+  // CHANGE: Aggiunto ricalcolo del totale dopo il filtro
+  updateStoricoTotal()
   renderStorico(storico)
 })
 
+// CHANGE: Corretta la funzione printStorico per usare la struttura dati corretta
 function printStorico() {
-  const date = document.getElementById("storicoDate").value
-  if (!date) {
-    alert("Seleziona una data prima di stampare!")
-    return
-  }
-
   if (storico.length === 0) {
-    alert("Nessun dato da stampare per questa ricerca")
+    alert("Nessun prodotto da stampare")
     return
   }
 
   const valoreStoricoFiltrato = storico.reduce((sum, s) => sum + Number.parseFloat(s.valore_totale || 0), 0)
-  // CHANGE: Calcolo del totale pezzi in giacenza alla data storica
-  const totalePezzi = storico.reduce((sum, s) => sum + Number.parseInt(s.giacenza || 0), 0)
 
   let printContent = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Storico Giacenze Magazzino</title>
+      <title>Storico Giacenze</title>
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; }
-        h1 { color: #333; border-bottom: 2px solid #4F46E5; padding-bottom: 10px; }
+        h1 { color: #333; border-bottom: 2px solid #10B981; padding-bottom: 10px; }
         .info { margin: 20px 0; font-size: 14px; }
         .prodotto-block { margin-bottom: 30px; page-break-inside: avoid; }
-        .prodotto-header {
-          background-color: #e0e7ff;
-          padding: 10px;
+        .prodotto-header { 
+          background-color: #d1fae5; 
+          padding: 10px; 
           margin-bottom: 10px;
-          border-left: 4px solid #4F46E5;
+          border-left: 4px solid #10B981;
         }
         .prodotto-info { display: flex; justify-content: space-between; margin: 5px 0; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; }
         th, td { border: 1px solid #ddd; padding: 8px; text-align: left; font-size: 12px; }
-        th { background-color: #6366f1; color: white; }
+        th { background-color: #10B981; color: white; }
         .lotto-row { background-color: #f9fafb; }
         .no-lotti { text-align: center; color: #999; padding: 10px; }
       </style>
@@ -1042,8 +982,7 @@ function printStorico() {
     <body>
       <h1>Storico Giacenze Magazzino</h1>
       <div class="info">
-        <p><strong>Data Storico:</strong> ${new Date(date).toLocaleDateString("it-IT")}</p>
-        <p><strong>Totale Pezzi:</strong> ${totalePezzi} pz</p>
+        <p><strong>Data Selezionata:</strong> ${document.getElementById("storicoDate").value}</p>
         <p><strong>Valore Totale (Filtrato):</strong> € ${valoreStoricoFiltrato.toFixed(2)}</p>
         <p><strong>Prodotti Visualizzati:</strong> ${storico.length}</p>
         <p><strong>Data Stampa:</strong> ${new Date().toLocaleDateString(
