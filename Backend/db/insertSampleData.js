@@ -2,11 +2,28 @@ const { initDatabase } = require("./init");
 const sqlite3 = require("sqlite3").verbose();
 const bcrypt = require("bcrypt");
 const path = require("path");
+const fs = require("fs");
+const readline = require("readline");
 
 const dbPath = path.join(__dirname, "magazzino.db");
 const db = new sqlite3.Database(dbPath);
 
-// Funzione helper per promisificare db.run
+// Configurazione da readline
+const rl = readline.createInterface({
+  input: process.stdin,
+  output: process.stdout,
+});
+
+// Funzione per chiedere input
+function askQuestion(question) {
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      resolve(answer);
+    });
+  });
+}
+
+// Funzione helper per promisificare db.run con supporto batch
 function runQuery(query, params = []) {
   return new Promise((resolve, reject) => {
     db.run(query, params, function (err) {
@@ -14,6 +31,37 @@ function runQuery(query, params = []) {
       else resolve(this);
     });
   });
+}
+
+// Funzione per batch insert (più veloce per grandi volumi)
+async function batchInsert(query, dataArray, batchSize = 500) {
+  const batches = [];
+  for (let i = 0; i < dataArray.length; i += batchSize) {
+    batches.push(dataArray.slice(i, i + batchSize));
+  }
+
+  let completed = 0;
+  for (const batch of batches) {
+    await new Promise((resolve, reject) => {
+      db.serialize(() => {
+        db.run("BEGIN TRANSACTION");
+        for (const params of batch) {
+          db.run(query, params, (err) => {
+            if (err) reject(err);
+          });
+        }
+        db.run("COMMIT", (err) => {
+          if (err) reject(err);
+          else {
+            completed += batch.length;
+            process.stdout.write(`\r  Progress: ${completed}/${dataArray.length}`);
+            resolve();
+          }
+        });
+      });
+    });
+  }
+  console.log(); // Newline dopo progress
 }
 
 // Funzione helper per promisificare db.get
@@ -26,1104 +74,335 @@ function getQuery(query, params = []) {
   });
 }
 
+// Funzione helper per promisificare db.all
+function getAllQuery(query, params = []) {
+  return new Promise((resolve, reject) => {
+    db.all(query, params, (err, rows) => {
+      if (err) reject(err);
+      else resolve(rows);
+    });
+  });
+}
+
+// Funzioni di utilità random
+function randomElement(array) {
+  return array[Math.floor(Math.random() * array.length)];
+}
+
+function randomInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function randomFloat(min, max, decimals = 2) {
+  const value = Math.random() * (max - min) + min;
+  return parseFloat(value.toFixed(decimals));
+}
+
+function randomDate(daysBack) {
+  const today = new Date();
+  const randomDays = Math.floor(Math.random() * daysBack);
+  const date = new Date(today);
+  date.setDate(date.getDate() - randomDays);
+  return date.toISOString().split("T")[0];
+}
+
+// Genera nome utente univoco
+function generateUsername(index, baseNames) {
+  if (index < baseNames.length) {
+    return baseNames[index];
+  }
+  return `User${index + 1}`;
+}
+
+// Genera nome marca univoco
+function generateMarcaName(index, baseMarche) {
+  if (index < baseMarche.length) {
+    return baseMarche[index];
+  }
+  const suffissi = ["Tech", "Group", "Industries", "Corporation", "International", "Global", "Solutions", "Systems"];
+  const prefissi = ["Alpha", "Beta", "Omega", "Prime", "Elite", "Pro", "Max", "Ultra", "Super", "Mega"];
+  return `${randomElement(prefissi)} ${randomElement(suffissi)} ${Math.floor(index / 100)}`;
+}
+
 async function seedDatabase() {
-  console.log("🌱 Inizio popolamento database...\n");
+  console.log("🌱 Inizio popolamento database con dati casuali su larga scala...\n");
+  const startTime = Date.now();
 
   try {
-    console.log("🏗️  Verifica e creazione tabelle...\n");
-    await new Promise((resolve, reject) => {
+    // Carica configurazione da JSON
+    const configPath = path.join(__dirname, "config.json");
+    if (!fs.existsSync(configPath)) {
+      console.log("❌ File seed-config.json non trovato!");
+      console.log("📝 Creazione file di configurazione completo...");
+      
+      const exampleConfig = require('./seed-config-template.json');
+      fs.writeFileSync(configPath, JSON.stringify(exampleConfig, null, 2));
+      console.log("✅ File seed-config.json creato!\n");
+    }
+
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+    // Chiedi configurazione da tastiera
+    console.log("📊 CONFIGURAZIONE GENERAZIONE DATI (MAX 10000 per tipo)\n");
+    
+    const numUtenti = Math.min(10000, parseInt(await askQuestion("Numero di utenti da creare (1-10000): ") || "10"));
+    const numMarche = Math.min(10000, parseInt(await askQuestion("Numero di marche da creare (1-10000): ") || "50"));
+    const numProdotti = Math.min(10000, parseInt(await askQuestion("Numero di prodotti da creare (1-10000): ") || "100"));
+    const numCarichi = Math.min(10000, parseInt(await askQuestion("Numero di movimenti di carico (1-10000): ") || "200"));
+    const numScarichi = Math.min(10000, parseInt(await askQuestion("Numero di movimenti di scarico (1-10000): ") || "150"));
+    const giorniStorico = parseInt(await askQuestion("Giorni di storico (default 180): ") || "180");
+
+    console.log("\n⚙️  Configurazione:");
+    console.log(`   • Utenti: ${numUtenti}`);
+    console.log(`   • Marche: ${numMarche}`);
+    console.log(`   • Prodotti: ${numProdotti}`);
+    console.log(`   • Carichi: ${numCarichi}`);
+    console.log(`   • Scarichi: ${numScarichi}`);
+    console.log(`   • Storico: ${giorniStorico} giorni`);
+    console.log("\n🚀 Avvio elaborazione...\n");
+
+    console.log("🏗️  Verifica e creazione tabelle...");
+    await new Promise((resolve) => {
       initDatabase();
-      // Aspetto un attimo per essere sicuro che le tabelle siano create
       setTimeout(resolve, 1000);
     });
     console.log("✅ Tabelle verificate!\n");
 
-    // 1. CREAZIONE UTENTI
-    console.log("👤 Creazione utenti...");
-    const users = [
-      { username: "Admin", password: "Admin123!" },
-      { username: "Mario", password: "Mario123!" },
-      { username: "Lucia", password: "Lucia123!" },
-      { username: "Giovanni", password: "Giovanni123!" },
-      { username: "Sara", password: "Sara123!" },
-      { username: "Roberto", password: "Roberto123!" },
-      { username: "Chiara", password: "Chiara123!" },
-      { username: "Marco", password: "Marco123!" },
-    ];
-
-    for (const user of users) {
-      const existing = await getQuery(
-        "SELECT id FROM users WHERE username = ?",
-        [user.username]
-      );
-
-      if (!existing) {
-        const hashedPassword = await bcrypt.hash(user.password, 10);
-        const createdAt = new Date().toISOString();
-        await runQuery(
-          "INSERT INTO users (username, password, createdat) VALUES (?, ?, ?)",
-          [user.username, hashedPassword, createdAt]
-        );
-        console.log(
-          `  ✅ Utente creato: ${user.username} (password: ${user.password})`
-        );
-      } else {
-        console.log(`  ⏭️  Utente già esistente: ${user.username}`);
-      }
+    // 1. CREAZIONE UTENTI IN BATCH
+    console.log("👤 Creazione utenti in batch...");
+    const usersToInsert = [];
+    for (let i = 0; i < numUtenti; i++) {
+      const username = generateUsername(i, config.nomi_utenti);
+      const password = `${username}123!`;
+      const hashedPassword = await bcrypt.hash(password, 10);
+      const createdAt = new Date().toISOString();
+      
+      usersToInsert.push([username, hashedPassword, createdAt]);
     }
 
-    // 2. CREAZIONE MARCHE
-    console.log("\n🏷️  Creazione marche...");
-    const marche = [
-      "Samsung",
-      "Apple",
-      "LG",
-      "Sony",
-      "Philips",
-      "Bosch",
-      "Whirlpool",
-      "Electrolux",
-      "HP",
-      "Dell",
-      "Asus",
-      "Lenovo",
-      "Canon",
-      "Nikon",
-      "JBL",
-      "Bose",
-      "Dyson",
-      "Xiaomi",
-    ];
+    await batchInsert(
+      "INSERT OR IGNORE INTO users (username, password, createdat) VALUES (?, ?, ?)",
+      usersToInsert
+    );
+    console.log(`✅ ${numUtenti} utenti creati!\n`);
 
+    // 2. CREAZIONE MARCHE IN BATCH
+    console.log("🏷️  Creazione marche in batch...");
+    const marcheToInsert = [];
     const marcheIds = {};
-    for (const marca of marche) {
-      const existing = await getQuery("SELECT id FROM marche WHERE nome = ?", [
-        marca,
+    
+    for (let i = 0; i < numMarche; i++) {
+      const nomeMarca = generateMarcaName(i, config.marche);
+      const dataCreazione = new Date().toISOString();
+      marcheToInsert.push([nomeMarca, dataCreazione]);
+    }
+
+    await batchInsert(
+      "INSERT OR IGNORE INTO marche (nome, data_creazione) VALUES (?, ?)",
+      marcheToInsert
+    );
+
+    // Recupera gli ID delle marche create
+    const marcheRows = await getAllQuery("SELECT id, nome FROM marche");
+    marcheRows.forEach(row => {
+      marcheIds[row.nome] = row.id;
+    });
+    console.log(`✅ ${Object.keys(marcheIds).length} marche create!\n`);
+
+    // 3. CREAZIONE PRODOTTI IN BATCH
+    console.log("📦 Creazione prodotti in batch...");
+    const prodottiToInsert = [];
+    const prodottiInfo = [];
+    const marcheNomi = Object.keys(marcheIds);
+
+    for (let i = 0; i < numProdotti; i++) {
+      const categoria = randomElement(config.categorie_prodotti);
+      const marcaNome = randomElement(marcheNomi);
+      const prefisso = randomElement(categoria.prefissi);
+      const specifica = randomElement(config.specifiche);
+      const dimensione = randomElement(config.dimensioni);
+      
+      const nome = `${prefisso} ${specifica} ${dimensione} #${i}`;
+      const descrizione = `${categoria.categoria} - ${marcaNome} ${randomInt(2020, 2024)}`;
+      const dataCreazione = new Date().toISOString();
+
+      prodottiToInsert.push([nome, marcheIds[marcaNome], descrizione, dataCreazione]);
+      prodottiInfo.push({ 
+        nome, 
+        categoria, 
+        marcaNome,
+        prezzoMin: categoria.prezzoMin,
+        prezzoMax: categoria.prezzoMax
+      });
+    }
+
+    await batchInsert(
+      "INSERT OR IGNORE INTO prodotti (nome, marca_id, descrizione, data_creazione) VALUES (?, ?, ?, ?)",
+      prodottiToInsert
+    );
+
+    // Recupera gli ID dei prodotti creati
+    const prodottiRows = await getAllQuery("SELECT id, nome FROM prodotti");
+    const prodottiIds = {};
+    prodottiRows.forEach(row => {
+      prodottiIds[row.nome] = row.id;
+    });
+    console.log(`✅ ${Object.keys(prodottiIds).length} prodotti creati!\n`);
+
+    // 4. CREAZIONE CARICHI IN BATCH
+    console.log("📥 Creazione carichi in batch...");
+    const carichiMovimenti = [];
+    const carichiLotti = [];
+    let movimentoId = 1;
+
+    for (let i = 0; i < numCarichi; i++) {
+      const prodotto = randomElement(prodottiInfo);
+      const quantita = randomInt(10, 200);
+      const prezzo = randomFloat(prodotto.prezzoMin, prodotto.prezzoMax);
+      const fornitore = randomElement(config.fornitori);
+      const anno = new Date().getFullYear();
+      const fattura = `FT-${anno}-${String(i + 1).padStart(6, "0")}`;
+      const dataMovimento = randomDate(giorniStorico);
+      const dataRegistrazione = new Date().toISOString();
+      const prezzoTotale = quantita * prezzo;
+
+      carichiMovimenti.push([
+        prodottiIds[prodotto.nome],
+        quantita,
+        prezzo,
+        prezzoTotale,
+        dataMovimento,
+        dataRegistrazione,
+        fattura,
+        fornitore
       ]);
 
-      if (!existing) {
-        const dataCreazione = new Date().toISOString();
-        const result = await runQuery(
-          "INSERT INTO marche (nome, data_creazione) VALUES (?, ?)",
-          [marca, dataCreazione]
-        );
-        marcheIds[marca] = result.lastID;
-        console.log(`  ✅ Marca creata: ${marca}`);
-      } else {
-        marcheIds[marca] = existing.id;
-        console.log(`  ⏭️  Marca già esistente: ${marca}`);
+      carichiLotti.push([
+        prodottiIds[prodotto.nome],
+        quantita,
+        quantita,
+        prezzo,
+        dataMovimento,
+        dataRegistrazione,
+        fattura,
+        fornitore,
+        movimentoId
+      ]);
+
+      movimentoId++;
+    }
+
+    // CORREZIONE APPLICATA QUI: aggiunta la colonna 'tipo' con il valore fisso 'carico'
+    await batchInsert(
+      `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
+       data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
+       VALUES (?, 'carico', ?, ?, ?, ?, ?, ?, ?)`,
+      carichiMovimenti
+    );
+
+    await batchInsert(
+      `INSERT INTO lotti (prodotto_id, quantita_iniziale, quantita_rimanente, 
+       prezzo, data_carico, data_registrazione, fattura_doc, fornitore, dati_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      carichiLotti
+    );
+    console.log(`✅ ${numCarichi} carichi creati!\n`);
+
+    // 5. CREAZIONE SCARICHI (con controllo disponibilità)
+    console.log("📤 Creazione scarichi...");
+    const scarichiMovimenti = [];
+    let scarichiCreati = 0;
+    let scarichiSaltati = 0;
+
+    for (let i = 0; i < numScarichi; i++) {
+      const prodotto = randomElement(prodottiInfo);
+      const prodottoId = prodottiIds[prodotto.nome];
+
+      // Verifica disponibilità
+      const disponibilita = await getQuery(
+        `SELECT SUM(quantita_rimanente) as totale FROM lotti WHERE prodotto_id = ?`,
+        [prodottoId]
+      );
+
+      if (!disponibilita || disponibilita.totale <= 0) {
+        scarichiSaltati++;
+        continue;
       }
-    }
 
-    // 3. CREAZIONE PRODOTTI
-    console.log("\n📦 Creazione prodotti...");
-    const prodotti = [
-      {
-        nome: 'TV LED 55"',
-        marca: "Samsung",
-        descrizione: "Smart TV 4K UHD con HDR",
-      },
-      { nome: "iPhone 15", marca: "Apple", descrizione: "Smartphone 128GB" },
-      {
-        nome: "Frigorifero 350L",
-        marca: "LG",
-        descrizione: "Frigorifero combinato No Frost",
-      },
-      {
-        nome: "Cuffie Wireless",
-        marca: "Sony",
-        descrizione: "Cuffie Bluetooth con noise cancelling",
-      },
-      {
-        nome: "Lavatrice 8kg",
-        marca: "Bosch",
-        descrizione: "Lavatrice a carica frontale A+++",
-      },
-      {
-        nome: "Microonde 25L",
-        marca: "Whirlpool",
-        descrizione: "Forno a microonde con grill",
-      },
-      {
-        nome: "Aspirapolvere Robot",
-        marca: "Philips",
-        descrizione: "Robot aspirapolvere con mappatura",
-      },
-      {
-        nome: "Asciugatrice 9kg",
-        marca: "Electrolux",
-        descrizione: "Asciugatrice a pompa di calore",
-      },
-      {
-        nome: "Soundbar",
-        marca: "Samsung",
-        descrizione: "Soundbar 2.1 con subwoofer wireless",
-      },
-      {
-        nome: "MacBook Air",
-        marca: "Apple",
-        descrizione: 'Laptop 13" M2 256GB',
-      },
-      { nome: 'Monitor 27"', marca: "Dell", descrizione: "Monitor 4K IPS" },
-      {
-        nome: "Stampante Laser",
-        marca: "HP",
-        descrizione: "Stampante laser a colori WiFi",
-      },
-      {
-        nome: "Mouse Wireless",
-        marca: "Logitech",
-        descrizione: "Mouse ergonomico wireless",
-      },
-      {
-        nome: "Tastiera Meccanica",
-        marca: "Asus",
-        descrizione: "Tastiera gaming RGB",
-      },
-      {
-        nome: "Webcam HD",
-        marca: "Logitech",
-        descrizione: "Webcam 1080p con microfono",
-      },
-      { nome: "SSD 1TB", marca: "Samsung", descrizione: "SSD NVMe M.2" },
-      {
-        nome: "Router WiFi 6",
-        marca: "Asus",
-        descrizione: "Router dual band WiFi 6",
-      },
-      {
-        nome: 'Tablet 10"',
-        marca: "Samsung",
-        descrizione: "Tablet Android 64GB",
-      },
-      {
-        nome: "Smart Watch",
-        marca: "Apple",
-        descrizione: "Apple Watch Series 9",
-      },
-      {
-        nome: "Fotocamera Mirrorless",
-        marca: "Canon",
-        descrizione: "Fotocamera 24MP con kit 18-55mm",
-      },
-      {
-        nome: "Obiettivo 50mm",
-        marca: "Nikon",
-        descrizione: "Obiettivo f/1.8 full frame",
-      },
-      {
-        nome: "Speaker Bluetooth",
-        marca: "JBL",
-        descrizione: "Cassa portatile waterproof",
-      },
-      {
-        nome: "Cuffie Gaming",
-        marca: "Razer",
-        descrizione: "Cuffie gaming 7.1 surround",
-      },
-      {
-        nome: "Laptop Gaming",
-        marca: "Lenovo",
-        descrizione: "Gaming laptop RTX 4060 16GB RAM",
-      },
-      {
-        nome: "Forno Elettrico",
-        marca: "Bosch",
-        descrizione: "Forno ventilato 65L",
-      },
-      {
-        nome: "Piano Cottura",
-        marca: "Electrolux",
-        descrizione: "Piano cottura a induzione 4 zone",
-      },
-      {
-        nome: "Lavastoviglie",
-        marca: "Whirlpool",
-        descrizione: "Lavastoviglie 14 coperti A++",
-      },
-      {
-        nome: "Condizionatore 12000",
-        marca: "LG",
-        descrizione: "Climatizzatore inverter",
-      },
-      {
-        nome: "Scopa Elettrica",
-        marca: "Dyson",
-        descrizione: "Aspirapolvere senza fili V15",
-      },
-      {
-        nome: "Purificatore Aria",
-        marca: "Xiaomi",
-        descrizione: "Purificatore d'aria HEPA",
-      },
-    ];
-
-    const prodottiIds = {};
-    for (const prodotto of prodotti) {
-      const existing = await getQuery(
-        "SELECT id FROM prodotti WHERE nome = ?",
-        [prodotto.nome]
-      );
-
-      if (!existing) {
-        const dataCreazione = new Date().toISOString();
-        const result = await runQuery(
-          "INSERT INTO prodotti (nome, marca_id, descrizione, data_creazione) VALUES (?, ?, ?, ?)",
-          [
-            prodotto.nome,
-            marcheIds[prodotto.marca],
-            prodotto.descrizione,
-            dataCreazione,
-          ]
-        );
-        prodottiIds[prodotto.nome] = result.lastID;
-        console.log(
-          `  ✅ Prodotto creato: ${prodotto.nome} (${prodotto.marca})`
-        );
-      } else {
-        prodottiIds[prodotto.nome] = existing.id;
-        console.log(`  ⏭️  Prodotto già esistente: ${prodotto.nome}`);
-      }
-    }
-
-    // 4. CREAZIONE MOVIMENTI DI CARICO E LOTTI
-    console.log("\n📥 Creazione carichi e lotti...");
-    const oggi = new Date();
-    const getDataPassata = (giorniIndietro) => {
-      const data = new Date(oggi);
-      data.setDate(data.getDate() - giorniIndietro);
-      return data.toISOString().split("T")[0];
-    };
-
-    const carichi = [
-      // TV e Monitor
-      {
-        prodotto: 'TV LED 55"',
-        quantita: 20,
-        prezzo: 450.0,
-        fornitore: "Fornitore Tech SRL",
-        fattura: "FT-2024-001",
-        dataMovimento: getDataPassata(90),
-      },
-      {
-        prodotto: 'TV LED 55"',
-        quantita: 15,
-        prezzo: 455.0,
-        fornitore: "Fornitore Tech SRL",
-        fattura: "FT-2024-035",
-        dataMovimento: getDataPassata(45),
-      },
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 25,
-        prezzo: 280.0,
-        fornitore: "Dell Italia",
-        fattura: "FT-2024-020",
-        dataMovimento: getDataPassata(60),
-      },
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 20,
-        prezzo: 275.0,
-        fornitore: "Dell Italia",
-        fattura: "FT-2024-045",
-        dataMovimento: getDataPassata(25),
-      },
-
-      // Smartphone e Tablet
-      {
-        prodotto: "iPhone 15",
-        quantita: 30,
-        prezzo: 800.0,
-        fornitore: "Apple Distributor",
-        fattura: "FT-2024-002",
-        dataMovimento: getDataPassata(85),
-      },
-      {
-        prodotto: "iPhone 15",
-        quantita: 25,
-        prezzo: 790.0,
-        fornitore: "Apple Distributor",
-        fattura: "FT-2024-040",
-        dataMovimento: getDataPassata(35),
-      },
-      {
-        prodotto: 'Tablet 10"',
-        quantita: 40,
-        prezzo: 250.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-018",
-        dataMovimento: getDataPassata(55),
-      },
-      {
-        prodotto: "Smart Watch",
-        quantita: 35,
-        prezzo: 380.0,
-        fornitore: "Apple Distributor",
-        fattura: "FT-2024-025",
-        dataMovimento: getDataPassata(50),
-      },
-
-      // Elettrodomestici grandi
-      {
-        prodotto: "Frigorifero 350L",
-        quantita: 15,
-        prezzo: 550.0,
-        fornitore: "Elettrodomestici Italia",
-        fattura: "FT-2024-003",
-        dataMovimento: getDataPassata(80),
-      },
-      {
-        prodotto: "Lavatrice 8kg",
-        quantita: 12,
-        prezzo: 400.0,
-        fornitore: "Bosch Italia",
-        fattura: "FT-2024-005",
-        dataMovimento: getDataPassata(75),
-      },
-      {
-        prodotto: "Lavatrice 8kg",
-        quantita: 10,
-        prezzo: 395.0,
-        fornitore: "Bosch Italia",
-        fattura: "FT-2024-038",
-        dataMovimento: getDataPassata(40),
-      },
-      {
-        prodotto: "Asciugatrice 9kg",
-        quantita: 10,
-        prezzo: 600.0,
-        fornitore: "Electrolux Distributor",
-        fattura: "FT-2024-008",
-        dataMovimento: getDataPassata(70),
-      },
-      {
-        prodotto: "Lavastoviglie",
-        quantita: 14,
-        prezzo: 480.0,
-        fornitore: "Whirlpool SPA",
-        fattura: "FT-2024-027",
-        dataMovimento: getDataPassata(65),
-      },
-      {
-        prodotto: "Condizionatore 12000",
-        quantita: 18,
-        prezzo: 520.0,
-        fornitore: "LG Italia",
-        fattura: "FT-2024-030",
-        dataMovimento: getDataPassata(60),
-      },
-      {
-        prodotto: "Forno Elettrico",
-        quantita: 12,
-        prezzo: 380.0,
-        fornitore: "Bosch Italia",
-        fattura: "FT-2024-032",
-        dataMovimento: getDataPassata(55),
-      },
-      {
-        prodotto: "Piano Cottura",
-        quantita: 10,
-        prezzo: 420.0,
-        fornitore: "Electrolux Distributor",
-        fattura: "FT-2024-033",
-        dataMovimento: getDataPassata(50),
-      },
-
-      // Elettrodomestici piccoli
-      {
-        prodotto: "Microonde 25L",
-        quantita: 25,
-        prezzo: 150.0,
-        fornitore: "Whirlpool SPA",
-        fattura: "FT-2024-006",
-        dataMovimento: getDataPassata(72),
-      },
-      {
-        prodotto: "Microonde 25L",
-        quantita: 20,
-        prezzo: 145.0,
-        fornitore: "Whirlpool SPA",
-        fattura: "FT-2024-042",
-        dataMovimento: getDataPassata(30),
-      },
-      {
-        prodotto: "Aspirapolvere Robot",
-        quantita: 18,
-        prezzo: 350.0,
-        fornitore: "Home Tech",
-        fattura: "FT-2024-007",
-        dataMovimento: getDataPassata(68),
-      },
-      {
-        prodotto: "Scopa Elettrica",
-        quantita: 22,
-        prezzo: 450.0,
-        fornitore: "Dyson Italia",
-        fattura: "FT-2024-029",
-        dataMovimento: getDataPassata(48),
-      },
-      {
-        prodotto: "Purificatore Aria",
-        quantita: 30,
-        prezzo: 180.0,
-        fornitore: "Xiaomi Store",
-        fattura: "FT-2024-034",
-        dataMovimento: getDataPassata(42),
-      },
-
-      // Audio
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 50,
-        prezzo: 120.0,
-        fornitore: "Audio Tech",
-        fattura: "FT-2024-004",
-        dataMovimento: getDataPassata(78),
-      },
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 40,
-        prezzo: 115.0,
-        fornitore: "Audio Tech",
-        fattura: "FT-2024-044",
-        dataMovimento: getDataPassata(28),
-      },
-      {
-        prodotto: "Soundbar",
-        quantita: 22,
-        prezzo: 200.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-009",
-        dataMovimento: getDataPassata(65),
-      },
-      {
-        prodotto: "Speaker Bluetooth",
-        quantita: 45,
-        prezzo: 80.0,
-        fornitore: "JBL Italia",
-        fattura: "FT-2024-022",
-        dataMovimento: getDataPassata(52),
-      },
-      {
-        prodotto: "Cuffie Gaming",
-        quantita: 35,
-        prezzo: 95.0,
-        fornitore: "Gaming Store",
-        fattura: "FT-2024-024",
-        dataMovimento: getDataPassata(46),
-      },
-
-      // Computer e Accessori
-      {
-        prodotto: "MacBook Air",
-        quantita: 15,
-        prezzo: 1100.0,
-        fornitore: "Apple Distributor",
-        fattura: "FT-2024-010",
-        dataMovimento: getDataPassata(62),
-      },
-      {
-        prodotto: "Laptop Gaming",
-        quantita: 12,
-        prezzo: 1350.0,
-        fornitore: "Lenovo Italia",
-        fattura: "FT-2024-023",
-        dataMovimento: getDataPassata(50),
-      },
-      {
-        prodotto: "Stampante Laser",
-        quantita: 20,
-        prezzo: 220.0,
-        fornitore: "HP Italia",
-        fattura: "FT-2024-012",
-        dataMovimento: getDataPassata(58),
-      },
-      {
-        prodotto: "Mouse Wireless",
-        quantita: 60,
-        prezzo: 35.0,
-        fornitore: "Tech Accessories",
-        fattura: "FT-2024-013",
-        dataMovimento: getDataPassata(56),
-      },
-      {
-        prodotto: "Mouse Wireless",
-        quantita: 50,
-        prezzo: 32.0,
-        fornitore: "Tech Accessories",
-        fattura: "FT-2024-046",
-        dataMovimento: getDataPassata(22),
-      },
-      {
-        prodotto: "Tastiera Meccanica",
-        quantita: 45,
-        prezzo: 85.0,
-        fornitore: "Gaming Store",
-        fattura: "FT-2024-014",
-        dataMovimento: getDataPassata(54),
-      },
-      {
-        prodotto: "Webcam HD",
-        quantita: 35,
-        prezzo: 65.0,
-        fornitore: "Tech Accessories",
-        fattura: "FT-2024-015",
-        dataMovimento: getDataPassata(52),
-      },
-      {
-        prodotto: "SSD 1TB",
-        quantita: 50,
-        prezzo: 95.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-016",
-        dataMovimento: getDataPassata(50),
-      },
-      {
-        prodotto: "SSD 1TB",
-        quantita: 40,
-        prezzo: 90.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-048",
-        dataMovimento: getDataPassata(18),
-      },
-      {
-        prodotto: "Router WiFi 6",
-        quantita: 28,
-        prezzo: 120.0,
-        fornitore: "Asus Italia",
-        fattura: "FT-2024-017",
-        dataMovimento: getDataPassata(48),
-      },
-
-      // Fotografia
-      {
-        prodotto: "Fotocamera Mirrorless",
-        quantita: 10,
-        prezzo: 850.0,
-        fornitore: "Canon Italia",
-        fattura: "FT-2024-019",
-        dataMovimento: getDataPassata(44),
-      },
-      {
-        prodotto: "Obiettivo 50mm",
-        quantita: 15,
-        prezzo: 320.0,
-        fornitore: "Nikon Italia",
-        fattura: "FT-2024-021",
-        dataMovimento: getDataPassata(40),
-      },
-
-      // Riordini recenti
-      {
-        prodotto: "iPhone 15",
-        quantita: 20,
-        prezzo: 795.0,
-        fornitore: "Apple Distributor",
-        fattura: "FT-2024-050",
-        dataMovimento: getDataPassata(15),
-      },
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 30,
-        prezzo: 118.0,
-        fornitore: "Audio Tech",
-        fattura: "FT-2024-051",
-        dataMovimento: getDataPassata(12),
-      },
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 18,
-        prezzo: 270.0,
-        fornitore: "Dell Italia",
-        fattura: "FT-2024-052",
-        dataMovimento: getDataPassata(10),
-      },
-      {
-        prodotto: "Aspirapolvere Robot",
-        quantita: 15,
-        prezzo: 345.0,
-        fornitore: "Home Tech",
-        fattura: "FT-2024-053",
-        dataMovimento: getDataPassata(8),
-      },
-      {
-        prodotto: "Soundbar",
-        quantita: 18,
-        prezzo: 195.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-054",
-        dataMovimento: getDataPassata(5),
-      },
-      {
-        prodotto: 'Tablet 10"',
-        quantita: 25,
-        prezzo: 245.0,
-        fornitore: "Samsung Italia",
-        fattura: "FT-2024-055",
-        dataMovimento: getDataPassata(3),
-      },
-    ];
-
-    for (const carico of carichi) {
-      const dataRegistrazione = new Date().toISOString();
-      const prezzoTotale = carico.quantita * carico.prezzo;
-
-      // Inserisci movimento di carico
-      const movimentoResult = await runQuery(
-        `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
-         data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
-         VALUES (?, 'carico', ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          prodottiIds[carico.prodotto],
-          carico.quantita,
-          carico.prezzo,
-          prezzoTotale,
-          carico.dataMovimento,
-          dataRegistrazione,
-          carico.fattura,
-          carico.fornitore,
-        ]
-      );
-
-      // Inserisci lotto corrispondente
-      await runQuery(
-        `INSERT INTO lotti (prodotto_id, quantita_iniziale, quantita_rimanente, 
-         prezzo, data_carico, data_registrazione, fattura_doc, fornitore, dati_id) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          prodottiIds[carico.prodotto],
-          carico.quantita,
-          carico.quantita,
-          carico.prezzo,
-          carico.dataMovimento,
-          dataRegistrazione,
-          carico.fattura,
-          carico.fornitore,
-          movimentoResult.lastID,
-        ]
-      );
-
-      console.log(
-        `  ✅ Carico: ${carico.quantita}x ${carico.prodotto} @ €${carico.prezzo}`
-      );
-    }
-
-    // 5. CREAZIONE MOVIMENTI DI SCARICO
-    console.log("\n📤 Creazione scarichi...");
-    const scarichi = [
-      // Scarichi recenti e progressivi
-      {
-        prodotto: 'TV LED 55"',
-        quantita: 5,
-        cliente: "Cliente Retail 001",
-        fattura: "FS-2024-001",
-        dataMovimento: getDataPassata(30),
-      },
-      {
-        prodotto: 'TV LED 55"',
-        quantita: 8,
-        cliente: "Cliente Online 015",
-        fattura: "FS-2024-025",
-        dataMovimento: getDataPassata(15),
-      },
-      {
-        prodotto: 'TV LED 55"',
-        quantita: 6,
-        cliente: "Cliente Business 003",
-        fattura: "FS-2024-040",
-        dataMovimento: getDataPassata(2),
-      },
-
-      {
-        prodotto: "iPhone 15",
-        quantita: 10,
-        cliente: "Cliente Retail 002",
-        fattura: "FS-2024-002",
-        dataMovimento: getDataPassata(28),
-      },
-      {
-        prodotto: "iPhone 15",
-        quantita: 12,
-        cliente: "Cliente Online 008",
-        fattura: "FS-2024-018",
-        dataMovimento: getDataPassata(18),
-      },
-      {
-        prodotto: "iPhone 15",
-        quantita: 15,
-        cliente: "Cliente Business 001",
-        fattura: "FS-2024-035",
-        dataMovimento: getDataPassata(8),
-      },
-      {
-        prodotto: "iPhone 15",
-        quantita: 8,
-        cliente: "Cliente Retail 020",
-        fattura: "FS-2024-042",
-        dataMovimento: getDataPassata(1),
-      },
-
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 15,
-        cliente: "Cliente Retail 003",
-        fattura: "FS-2024-003",
-        dataMovimento: getDataPassata(27),
-      },
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 20,
-        cliente: "Cliente Online 005",
-        fattura: "FS-2024-015",
-        dataMovimento: getDataPassata(20),
-      },
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 18,
-        cliente: "Cliente Business 002",
-        fattura: "FS-2024-030",
-        dataMovimento: getDataPassata(12),
-      },
-      {
-        prodotto: "Cuffie Wireless",
-        quantita: 12,
-        cliente: "Cliente Online 018",
-        fattura: "FS-2024-044",
-        dataMovimento: oggi.toISOString().split("T")[0],
-      },
-
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 10,
-        cliente: "Cliente Business 004",
-        fattura: "FS-2024-008",
-        dataMovimento: getDataPassata(25),
-      },
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 8,
-        cliente: "Cliente Online 012",
-        fattura: "FS-2024-022",
-        dataMovimento: getDataPassata(16),
-      },
-      {
-        prodotto: 'Monitor 27"',
-        quantita: 12,
-        cliente: "Cliente Retail 015",
-        fattura: "FS-2024-038",
-        dataMovimento: getDataPassata(4),
-      },
-
-      {
-        prodotto: "Microonde 25L",
-        quantita: 8,
-        cliente: "Cliente Retail 004",
-        fattura: "FS-2024-004",
-        dataMovimento: getDataPassata(26),
-      },
-      {
-        prodotto: "Microonde 25L",
-        quantita: 10,
-        cliente: "Cliente Online 009",
-        fattura: "FS-2024-020",
-        dataMovimento: getDataPassata(14),
-      },
-      {
-        prodotto: "Microonde 25L",
-        quantita: 7,
-        cliente: "Cliente Retail 018",
-        fattura: "FS-2024-041",
-        dataMovimento: getDataPassata(3),
-      },
-
-      {
-        prodotto: "Soundbar",
-        quantita: 7,
-        cliente: "Cliente Retail 005",
-        fattura: "FS-2024-005",
-        dataMovimento: getDataPassata(24),
-      },
-      {
-        prodotto: "Soundbar",
-        quantita: 9,
-        cliente: "Cliente Online 011",
-        fattura: "FS-2024-023",
-        dataMovimento: getDataPassata(13),
-      },
-      {
-        prodotto: "Soundbar",
-        quantita: 6,
-        cliente: "Cliente Retail 019",
-        fattura: "FS-2024-045",
-        dataMovimento: oggi.toISOString().split("T")[0],
-      },
-
-      {
-        prodotto: "Lavatrice 8kg",
-        quantita: 5,
-        cliente: "Cliente Retail 006",
-        fattura: "FS-2024-006",
-        dataMovimento: getDataPassata(23),
-      },
-      {
-        prodotto: "Lavatrice 8kg",
-        quantita: 4,
-        cliente: "Cliente Online 014",
-        fattura: "FS-2024-028",
-        dataMovimento: getDataPassata(10),
-      },
-
-      {
-        prodotto: "Mouse Wireless",
-        quantita: 25,
-        cliente: "Cliente Business 005",
-        fattura: "FS-2024-009",
-        dataMovimento: getDataPassata(22),
-      },
-      {
-        prodotto: "Mouse Wireless",
-        quantita: 20,
-        cliente: "Cliente Online 016",
-        fattura: "FS-2024-032",
-        dataMovimento: getDataPassata(11),
-      },
-      {
-        prodotto: "Mouse Wireless",
-        quantita: 18,
-        cliente: "Cliente Retail 021",
-        fattura: "FS-2024-043",
-        dataMovimento: getDataPassata(2),
-      },
-
-      {
-        prodotto: "Tastiera Meccanica",
-        quantita: 15,
-        cliente: "Cliente Online 006",
-        fattura: "FS-2024-012",
-        dataMovimento: getDataPassata(21),
-      },
-      {
-        prodotto: "Tastiera Meccanica",
-        quantita: 12,
-        cliente: "Cliente Business 006",
-        fattura: "FS-2024-027",
-        dataMovimento: getDataPassata(9),
-      },
-
-      {
-        prodotto: "SSD 1TB",
-        quantita: 20,
-        cliente: "Cliente Online 007",
-        fattura: "FS-2024-013",
-        dataMovimento: getDataPassata(19),
-      },
-      {
-        prodotto: "SSD 1TB",
-        quantita: 18,
-        cliente: "Cliente Business 007",
-        fattura: "FS-2024-033",
-        dataMovimento: getDataPassata(7),
-      },
-
-      {
-        prodotto: 'Tablet 10"',
-        quantita: 12,
-        cliente: "Cliente Retail 010",
-        fattura: "FS-2024-016",
-        dataMovimento: getDataPassata(17),
-      },
-      {
-        prodotto: 'Tablet 10"',
-        quantita: 15,
-        cliente: "Cliente Online 017",
-        fattura: "FS-2024-036",
-        dataMovimento: getDataPassata(5),
-      },
-
-      {
-        prodotto: "Speaker Bluetooth",
-        quantita: 18,
-        cliente: "Cliente Online 010",
-        fattura: "FS-2024-019",
-        dataMovimento: getDataPassata(15),
-      },
-      {
-        prodotto: "Speaker Bluetooth",
-        quantita: 14,
-        cliente: "Cliente Retail 016",
-        fattura: "FS-2024-037",
-        dataMovimento: getDataPassata(6),
-      },
-
-      {
-        prodotto: "Aspirapolvere Robot",
-        quantita: 6,
-        cliente: "Cliente Retail 011",
-        fattura: "FS-2024-021",
-        dataMovimento: getDataPassata(14),
-      },
-      {
-        prodotto: "Aspirapolvere Robot",
-        quantita: 8,
-        cliente: "Cliente Online 019",
-        fattura: "FS-2024-039",
-        dataMovimento: getDataPassata(3),
-      },
-
-      {
-        prodotto: "Smart Watch",
-        quantita: 10,
-        cliente: "Cliente Online 013",
-        fattura: "FS-2024-024",
-        dataMovimento: getDataPassata(12),
-      },
-      {
-        prodotto: "Smart Watch",
-        quantita: 12,
-        cliente: "Cliente Retail 017",
-        fattura: "FS-2024-034",
-        dataMovimento: getDataPassata(5),
-      },
-
-      {
-        prodotto: "Router WiFi 6",
-        quantita: 8,
-        cliente: "Cliente Business 008",
-        fattura: "FS-2024-026",
-        dataMovimento: getDataPassata(10),
-      },
-
-      {
-        prodotto: "Webcam HD",
-        quantita: 12,
-        cliente: "Cliente Business 009",
-        fattura: "FS-2024-029",
-        dataMovimento: getDataPassata(9),
-      },
-
-      {
-        prodotto: "Purificatore Aria",
-        quantita: 10,
-        cliente: "Cliente Retail 012",
-        fattura: "FS-2024-031",
-        dataMovimento: getDataPassata(8),
-      },
-
-      {
-        prodotto: "MacBook Air",
-        quantita: 5,
-        cliente: "Cliente Business 010",
-        fattura: "FS-2024-007",
-        dataMovimento: getDataPassata(20),
-      },
-      {
-        prodotto: "MacBook Air",
-        quantita: 4,
-        cliente: "Cliente Online 020",
-        fattura: "FS-2024-014",
-        dataMovimento: getDataPassata(6),
-      },
-
-      {
-        prodotto: "Frigorifero 350L",
-        quantita: 6,
-        cliente: "Cliente Retail 013",
-        fattura: "FS-2024-010",
-        dataMovimento: getDataPassata(18),
-      },
-
-      {
-        prodotto: "Lavastoviglie",
-        quantita: 5,
-        cliente: "Cliente Retail 014",
-        fattura: "FS-2024-011",
-        dataMovimento: getDataPassata(16),
-      },
-
-      {
-        prodotto: "Condizionatore 12000",
-        quantita: 7,
-        cliente: "Cliente Retail 007",
-        fattura: "FS-2024-017",
-        dataMovimento: getDataPassata(11),
-      },
-    ];
-
-    for (const scarico of scarichi) {
+      const quantita = Math.min(randomInt(1, 30), disponibilita.totale);
+      const tipoCliente = randomElement(config.clienti);
+      const numeroCliente = String(randomInt(1, 999)).padStart(3, "0");
+      const cliente = `${tipoCliente} ${numeroCliente}`;
+      const anno = new Date().getFullYear();
+      const fattura = `FS-${anno}-${String(i + 1).padStart(6, "0")}`;
+      const dataMovimento = randomDate(Math.floor(giorniStorico / 2));
       const dataRegistrazione = new Date().toISOString();
 
-      // Prendi il lotto FIFO per calcolare il prezzo
+      // Prendi prezzo FIFO
       const lotto = await getQuery(
         `SELECT prezzo FROM lotti 
          WHERE prodotto_id = ? AND quantita_rimanente > 0 
          ORDER BY data_carico ASC LIMIT 1`,
-        [prodottiIds[scarico.prodotto]]
+        [prodottoId]
       );
 
       const prezzo = lotto ? lotto.prezzo : 0;
-      const prezzoTotale = scarico.quantita * prezzo;
+      const prezzoTotale = quantita * prezzo;
 
-      // Inserisci movimento di scarico
+      // Inserisci scarico (il tipo è già specificato qui come 'scarico')
       await runQuery(
         `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
          data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
          VALUES (?, 'scarico', ?, ?, ?, ?, ?, ?, ?)`,
-        [
-          prodottiIds[scarico.prodotto],
-          scarico.quantita,
-          prezzo,
-          prezzoTotale,
-          scarico.dataMovimento,
-          dataRegistrazione,
-          scarico.fattura,
-          scarico.cliente,
-        ]
+        [prodottoId, quantita, prezzo, prezzoTotale, dataMovimento, dataRegistrazione, fattura, cliente]
       );
 
-      // Aggiorna i lotti (FIFO)
-      let quantitaDaScaricare = scarico.quantita;
+      // Aggiorna lotti FIFO
+      let quantitaDaScaricare = quantita;
       while (quantitaDaScaricare > 0) {
         const lottoFifo = await getQuery(
           `SELECT id, quantita_rimanente FROM lotti 
            WHERE prodotto_id = ? AND quantita_rimanente > 0 
            ORDER BY data_carico ASC LIMIT 1`,
-          [prodottiIds[scarico.prodotto]]
+          [prodottoId]
         );
 
         if (!lottoFifo) break;
 
-        const quantitaDaPrelevare = Math.min(
-          quantitaDaScaricare,
-          lottoFifo.quantita_rimanente
-        );
-        const nuovaQuantita =
-          lottoFifo.quantita_rimanente - quantitaDaPrelevare;
+        const quantitaDaPrelevare = Math.min(quantitaDaScaricare, lottoFifo.quantita_rimanente);
+        const nuovaQuantita = lottoFifo.quantita_rimanente - quantitaDaPrelevare;
 
         await runQuery("UPDATE lotti SET quantita_rimanente = ? WHERE id = ?", [
           nuovaQuantita,
-          lottoFifo.id,
+          lottoFifo.id
         ]);
 
         quantitaDaScaricare -= quantitaDaPrelevare;
       }
 
-      console.log(
-        `  ✅ Scarico: ${scarico.quantita}x ${scarico.prodotto} @ €${prezzo}`
-      );
+      scarichiCreati++;
+      if (scarichiCreati % 50 === 0) {
+        process.stdout.write(`\r  Progress: ${scarichiCreati}/${numScarichi}`);
+      }
     }
+    console.log(`\n✅ ${scarichiCreati} scarichi creati (${scarichiSaltati} saltati per mancanza giacenza)!\n`);
 
-    console.log("\n✅ Database popolato con successo!");
-    console.log("\n📊 Riepilogo:");
-    console.log(`   • ${users.length} utenti`);
-    console.log(`   • ${marche.length} marche`);
-    console.log(`   • ${prodotti.length} prodotti`);
-    console.log(`   • ${carichi.length} carichi`);
-    console.log(`   • ${scarichi.length} scarichi`);
-    console.log(`   • Total movimenti: ${carichi.length + scarichi.length}`);
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(2);
+
+    console.log("✅ Database popolato con successo!");
+    console.log("\n📊 Riepilogo Finale:");
+    console.log(`   • ${numUtenti} utenti`);
+    console.log(`   • ${Object.keys(marcheIds).length} marche`);
+    console.log(`   • ${Object.keys(prodottiIds).length} prodotti`);
+    console.log(`   • ${numCarichi} carichi`);
+    console.log(`   • ${scarichiCreati} scarichi`);
+    console.log(`   • Periodo storico: ${giorniStorico} giorni`);
+    console.log(`   • Tempo di esecuzione: ${duration} secondi`);
   } catch (error) {
     console.error("❌ Errore durante il popolamento:", error);
   } finally {
+    rl.close();
     db.close(() => {
       console.log("\n🔒 Connessione al database chiusa.");
     });
