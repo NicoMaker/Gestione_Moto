@@ -27,19 +27,21 @@ router.post("/login", async (req, res) => {
 
       try {
         const passwordMatch = await bcrypt.compare(password, user.password);
-        
+
         if (!passwordMatch) {
           return res.status(401).json({ error: "Credenziali non valide" });
         }
 
         // Login riuscito
-        res.json({ 
-          success: true, 
+        res.json({
+          success: true,
           message: "Login effettuato con successo",
-          username: user.username 
+          username: user.username,
         });
       } catch (error) {
-        res.status(500).json({ error: "Errore durante la verifica della password" });
+        res
+          .status(500)
+          .json({ error: "Errore durante la verifica della password" });
       }
     }
   );

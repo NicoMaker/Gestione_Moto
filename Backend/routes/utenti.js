@@ -24,9 +24,7 @@ router.get("/", (req, res) => {
     (err, rows) => {
       if (err) {
         console.error("Errore nel recupero utenti:", err);
-        return res
-          .status(500)
-          .json({ error: "Errore nel recupero utenti" });
+        return res.status(500).json({ error: "Errore nel recupero utenti" });
       }
       res.json(rows);
     }
@@ -38,9 +36,7 @@ router.post("/", async (req, res) => {
   const { username, password } = req.body;
 
   if (!username || !password) {
-    return res
-      .status(400)
-      .json({ error: "Username e password obbligatori" });
+    return res.status(400).json({ error: "Username e password obbligatori" });
   }
 
   if (username.length < 3) {
@@ -51,7 +47,8 @@ router.post("/", async (req, res) => {
 
   if (!isPasswordStrong(password)) {
     return res.status(400).json({
-      error: "La password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
+      error:
+        "La password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
     });
   }
 
@@ -65,9 +62,7 @@ router.post("/", async (req, res) => {
       function (err) {
         if (err) {
           if (err.message.includes("UNIQUE")) {
-            return res
-              .status(400)
-              .json({ error: "Username già esistente" });
+            return res.status(400).json({ error: "Username già esistente" });
           }
           console.error("Errore inserimento utente:", err);
           return res
@@ -79,7 +74,9 @@ router.post("/", async (req, res) => {
     );
   } catch (error) {
     console.error("Errore hashing password:", error);
-    res.status(500).json({ error: "Errore di sicurezza nella gestione password" });
+    res
+      .status(500)
+      .json({ error: "Errore di sicurezza nella gestione password" });
   }
 });
 
@@ -91,7 +88,10 @@ router.put("/:id", async (req, res) => {
   if (!username && !password) {
     return res
       .status(400)
-      .json({ error: "Almeno Username o Password sono obbligatori per l'aggiornamento" });
+      .json({
+        error:
+          "Almeno Username o Password sono obbligatori per l'aggiornamento",
+      });
   }
 
   db.get("SELECT * FROM users WHERE id = ?", [id], async (err1, user) => {
@@ -109,20 +109,25 @@ router.put("/:id", async (req, res) => {
     let newPasswordHash = user.password;
 
     if (username && username.length < 3) {
-      return res.status(400).json({ error: "Username deve contenere almeno 3 caratteri." });
+      return res
+        .status(400)
+        .json({ error: "Username deve contenere almeno 3 caratteri." });
     }
 
     if (password) {
       if (!isPasswordStrong(password)) {
         return res.status(400).json({
-          error: "La nuova password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
+          error:
+            "La nuova password deve essere forte (min. 8 caratteri, maiuscola, minuscola, numero).",
         });
       }
       try {
         newPasswordHash = await bcrypt.hash(password, 10);
       } catch (error) {
         console.error("Errore hashing nuova password:", error);
-        return res.status(500).json({ error: "Errore di sicurezza nella gestione password" });
+        return res
+          .status(500)
+          .json({ error: "Errore di sicurezza nella gestione password" });
       }
     }
 
@@ -185,9 +190,7 @@ router.delete("/:id", (req, res) => {
   db.get("SELECT COUNT(*) AS total FROM users", [], (err, row) => {
     if (err) {
       console.error("Errore conteggio utenti:", err);
-      return res
-        .status(500)
-        .json({ error: "Errore nel conteggio utenti" });
+      return res.status(500).json({ error: "Errore nel conteggio utenti" });
     }
 
     if (row.total <= 1) {

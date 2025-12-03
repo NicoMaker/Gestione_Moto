@@ -1,17 +1,17 @@
 // db/init.js
 
-const sqlite3 = require("sqlite3").verbose()
-const bcrypt = require("bcrypt")
-const path = require("path")
-const fs = require("fs")
+const sqlite3 = require("sqlite3").verbose();
+const bcrypt = require("bcrypt");
+const path = require("path");
+const fs = require("fs");
 
-const dbDir = path.join(__dirname)
+const dbDir = path.join(__dirname);
 if (!fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true })
+  fs.mkdirSync(dbDir, { recursive: true });
 }
 
-const dbPath = path.join(dbDir, "magazzino.db")
-const db = new sqlite3.Database(dbPath)
+const dbPath = path.join(dbDir, "magazzino.db");
+const db = new sqlite3.Database(dbPath);
 
 async function initDatabase() {
   db.serialize(async () => {
@@ -22,7 +22,7 @@ async function initDatabase() {
         nome TEXT UNIQUE NOT NULL,
         data_creazione TEXT NOT NULL
       )
-    `)
+    `);
 
     // Tabella prodotti (con marca_id e descrizione)
     db.run(`
@@ -34,7 +34,7 @@ async function initDatabase() {
         data_creazione TEXT NOT NULL,
         FOREIGN KEY(marca_id) REFERENCES marche(id)
       )
-    `)
+    `);
 
     // Tabella dati (movimenti)
     db.run(`
@@ -51,7 +51,7 @@ async function initDatabase() {
         fornitore_cliente_id TEXT,
         FOREIGN KEY(prodotto_id) REFERENCES prodotti(id)
       )
-    `)
+    `);
 
     // Tabella lotti (per la gestione FIFO)
     db.run(`
@@ -69,7 +69,7 @@ async function initDatabase() {
         FOREIGN KEY(prodotto_id) REFERENCES prodotti(id),
         FOREIGN KEY(dati_id) REFERENCES dati(id)
       )
-    `)
+    `);
 
     // Tabella utenti
     db.run(
@@ -83,41 +83,43 @@ async function initDatabase() {
     `,
       async (err) => {
         if (err) {
-          console.error("Errore creazione tabella users:", err)
-          return
+          console.error("Errore creazione tabella users:", err);
+          return;
         }
 
         db.get("SELECT COUNT(*) AS count FROM users", async (err2, row) => {
           if (err2) {
-            console.error("Errore verifica utenti:", err2)
-            return
+            console.error("Errore verifica utenti:", err2);
+            return;
           }
 
           if (row && row.count === 0) {
             try {
-              const hashedPassword = await bcrypt.hash("Admin123!", 10)
-              const createdAt = new Date().toISOString()
+              const hashedPassword = await bcrypt.hash("Admin123!", 10);
+              const createdAt = new Date().toISOString();
               db.run(
                 "INSERT INTO users (username, password, createdat) VALUES (?, ?, ?)",
                 ["Admin", hashedPassword, createdAt],
                 (err3) => {
                   if (err3) {
-                    console.error("Errore creazione utente Admin:", err3)
+                    console.error("Errore creazione utente Admin:", err3);
                   } else {
-                    console.log("✅ Utente Admin creato (username: Admin, password: Admin123!)")
+                    console.log(
+                      "✅ Utente Admin creato (username: Admin, password: Admin123!)"
+                    );
                   }
-                },
-              )
+                }
+              );
             } catch (error) {
-              console.error("Errore hashing password:", error)
+              console.error("Errore hashing password:", error);
             }
           }
-        })
-      },
-    )
+        });
+      }
+    );
 
     // Le marche vengono create manualmente dall'utente
-  })
+  });
 }
 
-module.exports = { db, initDatabase }
+module.exports = { db, initDatabase };

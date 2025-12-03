@@ -1,49 +1,69 @@
 <!DOCTYPE html>
 <html lang="it">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Login - Gestione Magazzino Moto</title>
-  <link rel="stylesheet" href="login.css">
-</head>
-<body>
-  <div class="login-container">
-    <div class="login-box">
-      <div class="login-header">
-        <!-- Replaced SVG with image logo -->
-        <img 
-          src="/placeholder.svg?height=64&width=64" 
-          alt="Logo Magazzino Moto" 
-          class="logo-icon"
-        />
-        <h1>Gestione Magazzino Moto</h1>
-        <p>Accedi al sistema di gestione</p>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Login - Gestione Magazzino Moto</title>
+    <link rel="stylesheet" href="login.css" />
+  </head>
+  <body>
+    <div class="login-container">
+      <div class="login-box">
+        <div class="login-header">
+          <!-- Replaced SVG with image logo -->
+          <img
+            src="/placeholder.svg?height=64&width=64"
+            alt="Logo Magazzino Moto"
+            class="logo-icon"
+          />
+          <h1>Gestione Magazzino Moto</h1>
+          <p>Accedi al sistema di gestione</p>
+        </div>
+
+        <form id="loginForm">
+          <div class="input-group">
+            <label for="username">Username</label>
+            <input
+              type="text"
+              id="username"
+              name="username"
+              required
+              autocomplete="username"
+              placeholder="username"
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="password">Password</label>
+            <input
+              type="password"
+              id="password"
+              name="password"
+              required
+              autocomplete="current-password"
+              placeholder="password"
+            />
+          </div>
+
+          <button type="submit" class="btn-login">
+            <span id="btnText">Accedi</span>
+            <svg
+              id="btnLoader"
+              class="loader"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+            </svg>
+          </button>
+        </form>
+
+        <div id="errorMessage" class="error-message"></div>
       </div>
-      
-      <form id="loginForm">
-        <div class="input-group">
-          <label for="username">Username</label>
-          <input type="text" id="username" name="username" required autocomplete="username" placeholder="username">
-        </div>
-        
-        <div class="input-group">
-          <label for="password">Password</label>
-          <input type="password" id="password" name="password" required autocomplete="current-password" placeholder="password"> 
-        </div>
-        
-        <button type="submit" class="btn-login">
-          <span id="btnText">Accedi</span>
-          <svg id="btnLoader" class="loader" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-          </svg>
-        </button>
-      </form>
-      
-      <div id="errorMessage" class="error-message"></div>
-      
     </div>
-  </div>
-  
-  <script src="login.js"></script>
-</body>
+
+    <script src="login.js"></script>
+  </body>
 </html>
