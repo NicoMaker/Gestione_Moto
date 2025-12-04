@@ -184,7 +184,8 @@ body::before {
 
 .input-group input {
   width: 100%;
-  padding: 14px 16px 14px 48px;
+  /* 🔑 MODIFICATO: Spazio maggiore a destra per l'icona occhio */
+  padding: 14px 48px 14px 48px; 
   border: 2px solid #e2e8f0;
   border-radius: 12px;
   font-size: 15px;
@@ -202,6 +203,55 @@ body::before {
   border-color: #6366f1;
   box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15);
   transform: translateY(-1px);
+}
+
+/* -------------------------------------------------- */
+/* 🔑 NUOVO: ICONA MOSTRA/NASCONDI PASSWORD */
+/* -------------------------------------------------- */
+
+.toggle-password {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.7;
+}
+
+.toggle-password:hover {
+  opacity: 1;
+}
+
+.toggle-password svg {
+  width: 20px;
+  height: 20px;
+  stroke: #a0aec0; /* Stesso colore dell'icona a sinistra */
+  stroke-width: 2;
+  fill: none;
+  position: absolute;
+  top: 0;
+  left: 0;
+}
+
+/* Stato iniziale: l'icona "visibile" è nascosta */
+.toggle-password .icon-visible {
+  display: none; 
+}
+
+/* Quando si aggiunge la classe 'visible', si scambiano le icone */
+.toggle-password.visible .icon-visible {
+  display: block;
+}
+
+.toggle-password.visible .icon-hidden {
+  display: none;
 }
 
 /* -------------------------------------------------- */

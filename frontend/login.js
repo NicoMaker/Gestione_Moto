@@ -53,3 +53,20 @@ document.querySelectorAll("input").forEach((input) => {
     }
   });
 });
+
+// 🔑 NUOVO: LOGICA MOSTRA/NASCONDI PASSWORD
+
+const passwordInput = document.getElementById("password");
+const togglePassword = document.getElementById("togglePassword");
+
+togglePassword.addEventListener("click", function () {
+  // Controlla il tipo attuale dell'input
+  const type =
+    passwordInput.getAttribute("type") === "password" ? "text" : "password";
+  
+  // Cambia il tipo
+  passwordInput.setAttribute("type", type);
+
+  // Aggiorna l'icona
+  this.classList.toggle("visible");
+});
