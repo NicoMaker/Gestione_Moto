@@ -591,14 +591,20 @@ document
     const id = document.getElementById("movimentoId").value;
     const prodotto_id = document.getElementById("movimentoProdotto").value;
     const tipo = document.getElementById("movimentoTipo").value;
-    const quantita = Number.parseFloat(
-      document.getElementById("movimentoQuantita").value
-    );
+    
+    // ⭐ USA LA NUOVA FUNZIONE DI PARSING
+    const quantitaValue = document.getElementById("movimentoQuantita").value;
+    const quantita = parseDecimalInput(quantitaValue);
+    
     const data_movimento = document.getElementById("movimentoData").value;
-    const prezzo =
-      tipo === "carico"
-        ? Number.parseFloat(document.getElementById("movimentoPrezzo").value)
-        : null;
+    
+    // ⭐ USA LA NUOVA FUNZIONE DI PARSING PER IL PREZZO
+    let prezzo = null;
+    if (tipo === "carico") {
+      const prezzoValue = document.getElementById("movimentoPrezzo").value;
+      prezzo = parseDecimalInput(prezzoValue);
+    }
+    
     const fattura_doc =
       tipo === "carico"
         ? document.getElementById("movimentoFattura").value.trim() || null
@@ -608,9 +614,27 @@ document
         ? document.getElementById("movimentoFornitore").value.trim() || null
         : null;
 
-    if (tipo === "carico" && (!fattura_doc || !fornitore)) {
-      alert("Documento e Fornitore sono obbligatori per i carichi!");
+    // Validazioni
+    if (!prodotto_id || !tipo || !quantita || !data_movimento) {
+      alert("Compila tutti i campi obbligatori!");
       return;
+    }
+
+    if (quantita <= 0) {
+      alert("La quantità deve essere maggiore di 0!");
+      return;
+    }
+
+    if (tipo === "carico") {
+      if (!prezzo || prezzo <= 0) {
+        alert("Il prezzo deve essere maggiore di 0 per i carichi!");
+        return;
+      }
+      
+      if (!fattura_doc || !fornitore) {
+        alert("Documento e Fornitore sono obbligatori per i carichi!");
+        return;
+      }
     }
 
     const method = id ? "PUT" : "POST";
@@ -623,8 +647,8 @@ document
         body: JSON.stringify({
           prodotto_id,
           tipo,
-          quantita,
-          prezzo,
+          quantita: parseFloat(quantita.toFixed(2)), // Assicura 2 decimali
+          prezzo: prezzo ? parseFloat(prezzo.toFixed(2)) : null, // Assicura 2 decimali
           data_movimento,
           fattura_doc,
           fornitore,
@@ -1357,4 +1381,361 @@ function formatNumber(num) {
   parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
 
   return parts.join(",");
+}
+
+// ==================== UTILITY PER INPUT DECIMALI ====================
+
+// Funzione per limitare a 2 decimali durante la digitazione
+function limitToTwoDecimals(inputElement) {
+  inputElement.addEventListener('input', function(e) {
+    let value = this.value;
+    
+    // Sostituisci virgola con punto
+    value = value.replace(',', '.');
+    
+    // Rimuovi caratteri non validi (solo numeri, punto e virgola)
+    value = value.replace(/[^\d.,]/g, '');
+    
+    // Gestisci multipli punti/virgole
+    const parts = value.split('.');
+    if (parts.length > 2) {
+      value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Limita a 2 decimali
+    if (parts.length === 2 && parts[1].length > 2) {
+      value = parts[0] + '.' + parts[1].substring(0, 2);
+    }
+    
+    this.value = value;
+  });
+  
+  // Formatta al blur (quando l'utente esce dal campo)
+  inputElement.addEventListener('blur', function(e) {
+    let value = this.value;
+    if (value === '' || value === '.') {
+      this.value = '';
+      return;
+    }
+    
+    value = value.replace(',', '.');
+    const num = parseFloat(value);
+    
+    if (!isNaN(num)) {
+      // Formatta con 2 decimali
+      this.value = num.toFixed(2).replace('.', ',');
+    }
+  });
+}
+
+// Applica la limitazione agli input quando si apre il modal
+function setupDecimalInputs() {
+  const quantitaInput = document.getElementById('movimentoQuantita');
+  const prezzoInput = document.getElementById('movimentoPrezzo');
+  
+  if (quantitaInput) limitToTwoDecimals(quantitaInput);
+  if (prezzoInput) limitToTwoDecimals(prezzoInput);
+}
+
+async function openMovimentoModal(movimento = null) {
+  if (prodotti.length === 0) {
+    const res = await fetch(`${API_URL}/prodotti`);
+    prodotti = await res.json();
+  }
+
+  const modal = document.getElementById("modalMovimento");
+  const title = document.getElementById("modalMovimentoTitle");
+  const form = document.getElementById("formMovimento");
+  const selectProdotto = document.getElementById("movimentoProdotto");
+
+  form.reset();
+
+  selectProdotto.innerHTML =
+    '<option value="">Seleziona prodotto...</option>' +
+    prodotti
+      .map((p) => {
+        const marcaNome = p.marca_nome
+          ? ` (${p.marca_nome.toUpperCase()})`
+          : "";
+        return `<option value="${p.id}">${p.nome}${marcaNome}</option>`;
+      })
+      .join("");
+
+  title.textContent = "Nuovo Movimento";
+  document.getElementById("movimentoId").value = "";
+  
+  if (!movimento) {
+    document.getElementById("giacenzaInfo").style.display = "none";
+  }
+
+  togglePrezzoField();
+  
+  // ⭐ AGGIUNGI QUESTA RIGA
+  setupDecimalInputs();
+
+  modal.classList.add("active");
+}
+
+function renderMovimenti() {
+  const tbody = document.getElementById("movimentiTableBody");
+
+  if (movimenti.length === 0) {
+    tbody.innerHTML =
+      '<tr><td colspan="11" class="text-center">Nessun movimento presente</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = movimenti
+    .map((m) => {
+      const prefix = m.tipo === "scarico" ? "- " : "";
+
+      // Calcolo prezzo unitario
+      let prezzoUnitarioRaw = "-";
+      if (m.tipo === "carico" && m.prezzo) {
+        prezzoUnitarioRaw = formatCurrency(m.prezzo);
+      } else if (m.tipo === "scarico" && m.prezzo_unitario_scarico) {
+        prezzoUnitarioRaw = formatCurrency(m.prezzo_unitario_scarico);
+      }
+
+      const prezzoUnitarioHtml =
+        prezzoUnitarioRaw !== "-"
+          ? prezzoUnitarioRaw.replace("€ ", `${prefix}€ `)
+          : "-";
+
+      const prezzoTotaleRaw = formatCurrency(m.prezzo_totale || 0);
+      const prezzoTotaleHtml = prezzoTotaleRaw.replace(
+        "€ ",
+        `${prefix}€ `
+      );
+
+      const colorClass = m.tipo === "carico" ? "text-green" : "text-red";
+
+      return `
+    <tr>
+      <td><strong>${m.prodotto_nome}</strong></td>
+      <td>${m.marca_nome || '<span style="color: #999;">-</span>'}</td>
+      <td>${
+        m.prodotto_descrizione
+          ? `<small>${m.prodotto_descrizione.substring(0, 30)}${
+              m.prodotto_descrizione.length > 30 ? "..." : ""
+            }</small>`
+          : '<span style="color: #999;">-</span>'
+      }</td>
+      <td><span class="badge ${
+        m.tipo === "carico" ? "badge-success" : "badge-danger"
+      }">${m.tipo.toUpperCase()}</span></td>
+
+      <td class="${colorClass}">${m.quantita} pz</td>
+      <td class="${colorClass}">${prezzoUnitarioHtml}</td>
+      <td class="${colorClass}"><strong>${prezzoTotaleHtml}</strong></td>
+
+      <td>${new Date(m.data_movimento).toLocaleDateString("it-IT")}</td>
+      <td>${m.fattura_doc || '<span style="color: #999;">-</span>'}</td>
+      <td>${m.fornitore_cliente_id || '<span style="color: #999;">-</span>'}</td>
+      <td class="text-right">
+        <button class="btn-icon" onclick="deleteMovimento(${m.id})" title="Elimina">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+          </svg>
+        </button>
+      </td>
+    </tr>
+  `;
+    })
+    .join("");
+}
+
+// ==================== GESTIONE SEPARATORE DECIMALE ====================
+
+// Rileva il separatore decimale del browser dell'utente
+function getDecimalSeparator() {
+  const numberWithDecimal = 1.1;
+  const formatted = numberWithDecimal.toLocaleString();
+  return formatted.charAt(1); // Restituisce '.' o ','
+}
+
+// Formatta numero con separatore corretto per l'utente
+function formatNumberWithLocale(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  
+  const separator = getDecimalSeparator();
+  const formatted = n.toFixed(2);
+  
+  // Se il separatore locale è virgola, sostituisci il punto
+  if (separator === ',') {
+    return formatted.replace('.', ',');
+  }
+  
+  return formatted;
+}
+
+// Aggiorna la funzione formatCurrency esistente
+function formatCurrency(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "€ 0,00";
+
+  return `€ ${formatNumber(n)}`;
+}
+
+// Aggiorna formatNumber per usare il separatore locale
+function formatNumber(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+
+  const separator = getDecimalSeparator();
+  const parts = n.toFixed(2).split(".");
+
+  // Aggiungi il punto ogni 3 cifre nella parte intera
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // Usa il separatore decimale corretto
+  if (separator === ',') {
+    return parts.join(",");
+  } else {
+    return parts.join(".");
+  }
+}
+
+// ==================== GESTIONE INPUT DECIMALI (MAX 2 CIFRE) ====================
+
+/**
+ * Limita l'input a massimo 2 cifre decimali in tempo reale
+ * Accetta sia punto che virgola come separatore
+ */
+function limitToTwoDecimals(inputElement) {
+  inputElement.addEventListener('input', function(e) {
+    let value = this.value;
+    
+    // Permetti solo numeri, punto e virgola
+    value = value.replace(/[^\d.,]/g, '');
+    
+    // Sostituisci virgola con punto per gestione interna
+    value = value.replace(',', '.');
+    
+    // Rimuovi punti multipli (mantieni solo il primo)
+    const parts = value.split('.');
+    if (parts.length > 2) {
+      value = parts[0] + '.' + parts.slice(1).join('');
+    }
+    
+    // Limita i decimali a 2 cifre
+    if (parts.length === 2) {
+      if (parts[1].length > 2) {
+        parts[1] = parts[1].substring(0, 2);
+        value = parts.join('.');
+      }
+    }
+    
+    // Aggiorna il valore con virgola per visualizzazione italiana
+    this.value = value.replace('.', ',');
+  });
+  
+  // Formatta correttamente quando l'utente esce dal campo
+  inputElement.addEventListener('blur', function(e) {
+    let value = this.value;
+    
+    // Campo vuoto o solo separatore
+    if (value === '' || value === ',' || value === '.') {
+      this.value = '';
+      return;
+    }
+    
+    // Converti in numero
+    value = value.replace(',', '.');
+    const num = parseFloat(value);
+    
+    if (!isNaN(num) && num >= 0) {
+      // Formatta con esattamente 2 decimali e virgola
+      this.value = num.toFixed(2).replace('.', ',');
+    } else {
+      this.value = '';
+    }
+  });
+  
+  // Previeni incolla di testo non valido
+  inputElement.addEventListener('paste', function(e) {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData('text');
+    const cleaned = pastedText.replace(/[^\d.,]/g, '').replace(',', '.');
+    const num = parseFloat(cleaned);
+    
+    if (!isNaN(num) && num >= 0) {
+      this.value = num.toFixed(2).replace('.', ',');
+    }
+  });
+}
+
+/**
+ * Converte il valore dell'input in numero float
+ * Gestisce sia punto che virgola
+ */
+function parseDecimalInput(value) {
+  if (!value || value === '') return 0;
+  const cleaned = String(value).replace(',', '.');
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Applica la limitazione decimale agli input quantità e prezzo
+ */
+function setupDecimalInputs() {
+  const quantitaInput = document.getElementById('movimentoQuantita');
+  const prezzoInput = document.getElementById('movimentoPrezzo');
+  
+  if (quantitaInput) {
+    // Rimuovi listener esistenti per evitare duplicati
+    const newQuantitaInput = quantitaInput.cloneNode(true);
+    quantitaInput.parentNode.replaceChild(newQuantitaInput, quantitaInput);
+    limitToTwoDecimals(newQuantitaInput);
+  }
+  
+  if (prezzoInput) {
+    // Rimuovi listener esistenti per evitare duplicati
+    const newPrezzoInput = prezzoInput.cloneNode(true);
+    prezzoInput.parentNode.replaceChild(newPrezzoInput, prezzoInput);
+    limitToTwoDecimals(newPrezzoInput);
+  }
+}
+
+async function openMovimentoModal(movimento = null) {
+  if (prodotti.length === 0) {
+    const res = await fetch(`${API_URL}/prodotti`);
+    prodotti = await res.json();
+  }
+
+  const modal = document.getElementById("modalMovimento");
+  const title = document.getElementById("modalMovimentoTitle");
+  const form = document.getElementById("formMovimento");
+  const selectProdotto = document.getElementById("movimentoProdotto");
+
+  form.reset();
+
+  selectProdotto.innerHTML =
+    '<option value="">Seleziona prodotto...</option>' +
+    prodotti
+      .map((p) => {
+        const marcaNome = p.marca_nome
+          ? ` (${p.marca_nome.toUpperCase()})`
+          : "";
+        return `<option value="${p.id}">${p.nome}${marcaNome}</option>`;
+      })
+      .join("");
+
+  title.textContent = "Nuovo Movimento";
+  document.getElementById("movimentoId").value = "";
+  
+  if (!movimento) {
+    document.getElementById("giacenzaInfo").style.display = "none";
+  }
+
+  togglePrezzoField();
+  
+  // ⭐ APPLICA I CONTROLLI DECIMALI
+  setTimeout(() => {
+    setupDecimalInputs();
+  }, 100);
+
+  modal.classList.add("active");
 }
