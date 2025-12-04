@@ -1095,3 +1095,12 @@ tbody tr:hover {
     transform: rotate(360deg);
   }
 }
+
+
+.text-green {
+  color: green !important;
+}
+
+.text-red {
+  color: red !important;
+}

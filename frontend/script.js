@@ -407,34 +407,32 @@ function renderMovimenti() {
   }
 
   tbody.innerHTML = movimenti
-    .map(
-      (m) => {
-        // Determina il prefisso per gli scarichi: "-" se scarico, "" altrimenti.
-        const prefix = m.tipo === "scarico" ? "- " : "";
-        
-        // Calcola il prezzo unitario
-        let prezzoUnitarioRaw = "-";
-        if (m.tipo === "carico" && m.prezzo) {
-            prezzoUnitarioRaw = formatCurrency(m.prezzo);
-        } else if (m.tipo === "scarico" && m.prezzo_unitario_scarico) {
-            prezzoUnitarioRaw = formatCurrency(m.prezzo_unitario_scarico);
-        }
-        
-        // Applica il prefisso "-" e il simbolo "€" al prezzo unitario
-        // Sostituiamo l' "€ " di default con l'eventuale prefisso + "€ "
-        const prezzoUnitarioHtml = prezzoUnitarioRaw !== "-" 
-            ? prezzoUnitarioRaw.replace('€ ', `${prefix}€ `) 
-            : "-";
+    .map((m) => {
+      const prefix = m.tipo === "scarico" ? "- " : "";
 
-        // Calcola il prezzo totale
-        const prezzoTotaleRaw = formatCurrency(m.prezzo_totale || 0);
-        
-        // Applica il prefisso "-" e il simbolo "€" al prezzo totale
-        // Sostituiamo l' "€ " di default con l'eventuale prefisso + "€ "
-        const prezzoTotaleHtml = prezzoTotaleRaw.replace('€ ', `${prefix}€ `);
+      // Calcolo prezzo unitario
+      let prezzoUnitarioRaw = "-";
+      if (m.tipo === "carico" && m.prezzo) {
+        prezzoUnitarioRaw = formatCurrency(m.prezzo);
+      } else if (m.tipo === "scarico" && m.prezzo_unitario_scarico) {
+        prezzoUnitarioRaw = formatCurrency(m.prezzo_unitario_scarico);
+      }
 
+      const prezzoUnitarioHtml =
+        prezzoUnitarioRaw !== "-"
+          ? prezzoUnitarioRaw.replace("€ ", `${prefix}€ `)
+          : "-";
 
-        return `
+      const prezzoTotaleRaw = formatCurrency(m.prezzo_totale || 0);
+      const prezzoTotaleHtml = prezzoTotaleRaw.replace(
+        "€ ",
+        `${prefix}€ `
+      );
+
+      // 🎨 Classe colore: verde per carico, rosso per scarico
+      const colorClass = m.tipo === "carico" ? "text-green" : "text-red";
+
+      return `
     <tr>
       <td><strong>${m.prodotto_nome}</strong></td>
       <td>${m.marca_nome || '<span style="color: #999;">-</span>'}</td>
@@ -448,15 +446,16 @@ function renderMovimenti() {
       <td><span class="badge ${
         m.tipo === "carico" ? "badge-success" : "badge-danger"
       }">${m.tipo.toUpperCase()}</span></td>
-      <td>${m.quantita} pz</td>
-      <td>${prezzoUnitarioHtml}</td> 
-      <td><strong>${prezzoTotaleHtml}</strong></td> 
+
+      <!-- 🎨 Colori dinamici -->
+      <td class="${colorClass}">${m.quantita} pz</td>
+      <td class="${colorClass}">${prezzoUnitarioHtml}</td>
+      <td class="${colorClass}"><strong>${prezzoTotaleHtml}</strong></td>
+
       <td>${new Date(m.data_movimento).toLocaleDateString("it-IT")}</td>
       <td>${m.fattura_doc || '<span style="color: #999;">-</span>'}</td>
       <td class="text-right">
-        <button class="btn-icon" onclick="deleteMovimento(${
-          m.id
-        })" title="Elimina">
+        <button class="btn-icon" onclick="deleteMovimento(${m.id})" title="Elimina">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
           </svg>
@@ -464,10 +463,10 @@ function renderMovimenti() {
       </td>
     </tr>
   `;
-      }
-    )
+    })
     .join("");
 }
+
 
 document.getElementById("filterMovimenti")?.addEventListener("input", (e) => {
   const searchTerm = e.target.value.toLowerCase();
