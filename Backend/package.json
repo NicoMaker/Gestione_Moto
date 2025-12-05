@@ -17,7 +17,7 @@
     "bcrypt",
     "auth"
   ],
-  "author": "",
+  "author": "<nNico Maker",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.1",
