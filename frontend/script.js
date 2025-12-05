@@ -2639,3 +2639,360 @@ function searchProducts() {
   resultsContainer.classList.add("show");
   console.log("Dropdown mostrato con", filteredProducts.length, "prodotti");
 }
+
+
+// File: script.js
+
+/**
+ * Converte il valore dell'input in numero float.
+ * Gestisce sia punto che virgola, convertendo tutto in punto per il parseFloat.
+ */
+function parseDecimalInput(value) {
+  if (!value || value === "") return 0;
+  const cleaned = String(value).replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+/**
+ * Limita l'input a massimo 2 cifre decimali in tempo reale.
+ * Usa toFixed(2) per visualizzare sempre lo zero finale (es. 0.5 diventa 0.50).
+ */
+function limitToTwoDecimals(inputElement) {
+  // Listener per la digitazione in tempo reale
+  inputElement.addEventListener("input", function (e) {
+    let value = this.value;
+    // Rimuovi caratteri non validi
+    let cleaned = value.replace(/[^\d.,]/g, "");
+
+    // ... (Logica per la gestione di separatori multipli)
+
+    const valueAsDot = cleaned.replace(",", ".");
+    const num = parseFloat(valueAsDot);
+
+    if (isNaN(num)) {
+      this.value = "";
+      return;
+    }
+
+    if (num > 0) {
+      // PUNTO CHIAVE: Forzatura a 2 decimali.
+      // Se 'num' è 1.5, .toFixed(2) lo converte in "1.50".
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator()); 
+    } else {
+      this.value = cleaned;
+    }
+  });
+
+  // Listener per l'incolla da clipboard (stessa logica di forzatura)
+  inputElement.addEventListener("paste", function (e) {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData(
+      "text"
+    );
+    const cleaned = pastedText.replace(/[^\d.,]/g, "").replace(",", ".");
+    const num = parseFloat(cleaned);
+
+    if (!isNaN(num) && num >= 0) {
+      // Forzatura a 2 decimali anche all'atto di incollare.
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator());
+    }
+  });
+}
+
+// File: script.js
+
+// Determina il separatore decimale locale (virgola o punto)
+function getDecimalSeparator() {
+  const numberWithDecimal = 1.1;
+  const localeString = numberWithDecimal.toLocaleString(undefined, {
+    minimumFractionDigits: 1,
+  });
+  return localeString.includes(".") ? "." : ",";
+}
+
+/**
+ * Formatta numero con separatore corretto per l'utente,
+ * garantendo sempre 2 decimali con toFixed(2).
+ */
+function formatNumber(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  const separator = getDecimalSeparator();
+  // PUNTO CHIAVE: toFixed(2) garantisce lo zero finale per la visualizzazione.
+  const parts = n.toFixed(2).split("."); 
+
+  // Aggiungi il punto ogni 3 cifre nella parte intera
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // Usa il separatore decimale corretto
+  if (separator === ",") {
+    return parts.join(",");
+  } else {
+    return parts.join(".");
+  }
+}
+
+// Formatta un numero come valuta (es. € 1.234,56)
+function formatCurrency(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "€ 0,00";
+  return `€ ${formatNumber(n)}`;
+}
+
+// ==================== FUNZIONI DI UTILITA (già presenti) ====================
+
+// Determina il separatore decimale locale (virgola o punto)
+function getDecimalSeparator() {
+  const numberWithDecimal = 1.1;
+  const localeString = numberWithDecimal.toLocaleString(undefined, {
+    minimumFractionDigits: 1,
+  });
+  return localeString.includes(".") ? "." : ",";
+}
+
+/**
+ * Converte il valore dell'input in numero float.
+ * Gestisce sia punto che virgola, convertendo tutto in punto per il parseFloat.
+ */
+function parseDecimalInput(value) {
+  if (!value || value === "") return 0;
+  const cleaned = String(value).replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+// ==================== NUOVE FUNZIONI CORRETTE ====================
+
+/**
+ * Limita l'input a massimo 2 cifre decimali, evitando di bloccare la digitazione.
+ * La formattazione finale a .00 viene applicata solo al BLUR.
+ *
+ */
+function limitToTwoDecimals(inputElement) {
+  const separator = getDecimalSeparator();
+  const separatorRegex = separator === '.' ? /\./g : /,/g;
+
+  // 1. Listener per la digitazione in tempo reale (solo pulizia)
+  inputElement.addEventListener("input", function (e) {
+    let value = this.value;
+    
+    // Rimuovi tutti i caratteri non numerici, punti e virgole
+    let cleaned = value.replace(/[^\d.,]/g, "");
+
+    // Assicurati che ci sia al massimo UN separatore decimale
+    const parts = cleaned.split(separatorRegex);
+
+    if (parts.length > 2) {
+        // Se ci sono troppi separatori, mantiene solo il primo
+        cleaned = parts[0] + separator + parts.slice(1).join("");
+    } else if (parts.length === 2) {
+        // Limita a 2 cifre dopo il separatore, ma non applica toFixed(2)
+        parts[1] = parts[1].substring(0, 2);
+        cleaned = parts[0] + separator + parts[1];
+    }
+    
+    // Imposta il valore pulito (PERMETTE DI DIGITARE 1,2 E NON FORZA 1,20)
+    this.value = cleaned;
+  });
+
+  // 2. Listener per il BLUR (quando l'utente esce dal campo) - Applica toFixed(2)
+  inputElement.addEventListener("blur", function (e) {
+    let value = this.value;
+    const num = parseDecimalInput(value); 
+
+    if (!isNaN(num) && value !== "") {
+      // PUNTO CHIAVE: Applica toFixed(2) solo quando si esce dal campo
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator());
+    } else if (value === "") {
+        // Se il campo è vuoto, lo imposta a 0.00
+        this.value = `0${separator}00`;
+    }
+  });
+  
+  // Listener per l'incolla da clipboard (mantiene la formattazione forzata, è più sicuro)
+  inputElement.addEventListener("paste", function (e) {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData(
+      "text"
+    );
+
+    const cleaned = pastedText.replace(/[^\d.,]/g, "").replace(",", ".");
+    const num = parseFloat(cleaned);
+
+    if (!isNaN(num) && num >= 0) {
+      // Formatta a 2 decimali e usa il separatore decimale locale
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator());
+    }
+  });
+}
+
+// File: script.js
+
+/**
+ * Formatta numero con separatore corretto per l'utente,
+ * garantendo sempre 2 decimali con toFixed(2).
+ */
+function formatNumber(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  const separator = getDecimalSeparator();
+  // toFixed(2) forza 2 cifre decimali (es. 0.5 -> "0.50")
+  const parts = n.toFixed(2).split("."); 
+
+  // ... logica separatore migliaia ...
+
+  // Usa il separatore decimale corretto
+  if (separator === ",") {
+    return parts.join(",");
+  } else {
+    return parts.join(".");
+  }
+}
+
+// Formatta un numero come valuta (es. € 1.234,56)
+function formatCurrency(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "€ 0,00";
+  return `€ ${formatNumber(n)}`;
+}
+
+// File: script.js
+
+// Determina il separatore decimale locale (virgola o punto)
+function getDecimalSeparator() {
+  const numberWithDecimal = 1.1;
+  const localeString = numberWithDecimal.toLocaleString(undefined, {
+    minimumFractionDigits: 1,
+  });
+  return localeString.includes(".") ? "." : ",";
+}
+
+/**
+ * Converte il valore dell'input in numero float.
+ * Gestisce sia punto che virgola, convertendo tutto in punto per il parseFloat.
+ */
+function parseDecimalInput(value) {
+  if (!value || value === "") return 0;
+  const cleaned = String(value).replace(",", ".");
+  const num = parseFloat(cleaned);
+  return isNaN(num) ? 0 : num;
+}
+
+// File: script.js
+
+/**
+ * Limita l'input a massimo 2 cifre decimali durante la digitazione
+ * e forza la formattazione a due decimali (.00) all'uscita dal campo (blur).
+ */
+function limitToTwoDecimals(inputElement) {
+  const separator = getDecimalSeparator();
+  // Crea una regex per dividere in base al separatore locale
+  const separatorRegex = separator === '.' ? /\./g : /,/g; 
+
+  // 1. Listener per la digitazione in tempo reale (ENFORCES MAX 2 DECIMALI)
+  inputElement.addEventListener("input", function (e) {
+    let value = this.value;
+    
+    // Rimuovi tutti i caratteri non numerici, punti e virgole
+    let cleaned = value.replace(/[^\d.,]/g, "");
+
+    // Dividi la stringa in parte intera e parte decimale
+    const parts = cleaned.split(separatorRegex);
+
+    if (parts.length > 2) {
+        // Gestione di separatori multipli inseriti per errore
+        cleaned = parts[0] + separator + parts.slice(1).join("");
+    } else if (parts.length === 2) {
+        // PUNTO CHIAVE: Limita la parte decimale a 2 caratteri (cifre)
+        parts[1] = parts[1].substring(0, 2); 
+        cleaned = parts[0] + separator + parts[1];
+    }
+    
+    // Aggiorna il valore pulito (l'utente non vedrà mai più di due decimali)
+    this.value = cleaned;
+  });
+
+  // 2. Listener per il BLUR (quando l'utente esce dal campo) - FORZA .00
+  inputElement.addEventListener("blur", function (e) {
+    let value = this.value;
+    const num = parseDecimalInput(value); 
+
+    if (!isNaN(num) && value !== "") {
+      // Applica toFixed(2) per formattare con due decimali (es. 0.5 -> 0.50)
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator());
+    } else if (value === "") {
+        // Se il campo è vuoto, lo imposta a 0.00
+        this.value = `0${separator}00`;
+    }
+  });
+  
+  // 3. Listener per l'incolla da clipboard
+  inputElement.addEventListener("paste", function (e) {
+    e.preventDefault();
+    const pastedText = (e.clipboardData || window.clipboardData).getData(
+      "text"
+    );
+
+    const cleaned = pastedText.replace(/[^\d.,]/g, "").replace(",", ".");
+    const num = parseFloat(cleaned);
+
+    if (!isNaN(num) && num >= 0) {
+      // Formatta a 2 decimali anche quando si incolla
+      this.value = num.toFixed(2).replace(".", getDecimalSeparator());
+    }
+  });
+}
+
+/**
+ * Applica la limitazione decimale agli input quantità e prezzo
+ * Questa funzione dovrebbe essere chiamata all'apertura del modal Movimenti.
+ */
+function setupDecimalInputs() {
+  const quantitaInput = document.getElementById("movimentoQuantita");
+  const prezzoInput = document.getElementById("movimentoPrezzo");
+  
+  // Clonare e sostituire per rimuovere listener precedenti
+  if (quantitaInput) {
+    const newQuantitaInput = quantitaInput.cloneNode(true);
+    quantitaInput.parentNode.replaceChild(newQuantitaInput, quantitaInput);
+    limitToTwoDecimals(newQuantitaInput);
+  }
+  
+  if (prezzoInput) {
+    const newPrezzoInput = prezzoInput.cloneNode(true);
+    prezzoInput.parentNode.replaceChild(newPrezzoInput, prezzoInput);
+    limitToTwoDecimals(newPrezzoInput);
+  }
+}
+
+// File: script.js
+
+/**
+ * Formatta numero con separatore corretto per l'utente,
+ * garantendo sempre 2 decimali con toFixed(2).
+ */
+function formatNumber(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  const separator = getDecimalSeparator();
+  // toFixed(2) forza 2 cifre decimali (es. 0.5 -> "0.50")
+  const parts = n.toFixed(2).split("."); 
+
+  // Aggiungi il punto ogni 3 cifre nella parte intera
+  parts[0] = parts[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
+  // Usa il separatore decimale corretto
+  if (separator === ",") {
+    return parts.join(",");
+  } else {
+    return parts.join(".");
+  }
+}
+
+// Formatta un numero come valuta (es. € 1.234,56)
+function formatCurrency(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "€ 0,00";
+  return `€ ${formatNumber(n)}`;
+}
