@@ -317,7 +317,6 @@ async function openProdottoModal(prodotto = null) {
 
   // CHANGE: Aggiunta opzione vuota come prima scelta per non preselezionare nessuna marca
   selectMarca.innerHTML =
-    '<option value="">Seleziona marca...</option>' +
     marche
       .map((m) => `<option value="${m.id}">${m.nome.toUpperCase()}</option>`)
       .join("");
