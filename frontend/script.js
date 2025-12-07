@@ -3599,3 +3599,31 @@ document.getElementById("formProdotto")?.addEventListener("submit", async (e) =>
 //   closeProdottoModal,
 //   highlightMatch
 // };
+function openUserModal(user = null) {
+  const modal = document.getElementById("modalUser");
+  const title = document.getElementById("modalUserTitle");
+  const form = document.getElementById("formUser");
+  const passwordInput = document.getElementById("userPassword");
+  const passwordLabel = passwordInput?.previousElementSibling;
+
+  form.reset();
+
+  if (user) {
+    title.textContent = "Modifica Utente";
+    document.getElementById("userId").value = user.id;
+    document.getElementById("userUsername").value = user.username;
+    if (passwordLabel) {
+      passwordLabel.innerHTML = 'Password <span style="opacity: 0.6;">(opzionale)</span>';
+    }
+    passwordInput.required = false;
+  } else {
+    title.textContent = "Nuovo Utente";
+    document.getElementById("userId").value = "";
+    if (passwordLabel) {
+      passwordLabel.innerHTML = 'Password *';
+    }
+    passwordInput.required = true;
+  }
+
+  modal.classList.add("active");
+}
