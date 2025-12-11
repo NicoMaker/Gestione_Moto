@@ -372,45 +372,7 @@ async function deleteProdotto(id) {
   }
 }
 
-document
-  .getElementById("formProdotto")
-  .addEventListener("submit", async (e) => {
-    e.preventDefault();
-
-    const id = document.getElementById("prodottoId").value;
-    const nome = document.getElementById("prodottoNome").value.trim();
-    const marca_id = document.getElementById("prodottoMarca").value;
-    const descrizione =
-      document.getElementById("prodottoDescrizione").value.trim() || null;
-
-    if (!marca_id) {
-      alert("La marca è obbligatoria!");
-      return;
-    }
-
-    const method = id ? "PUT" : "POST";
-    const url = id ? `${API_URL}/prodotti/${id}` : `${API_URL}/prodotti`;
-
-    try {
-      const res = await fetch(url, {
-        method,
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ nome, marca_id, descrizione }),
-      });
-
-      const data = await res.json();
-
-      if (res.ok) {
-        alert(id ? "Prodotto aggiornato!" : "Prodotto creato!");
-        closeProdottoModal();
-        loadProdotti();
-      } else {
-        alert(data.error || "Errore durante il salvataggio");
-      }
-    } catch (error) {
-      alert("Errore di connessione");
-    }
-  });
+// listener di submit spostato più sotto per evitare registrazioni duplicate
 
 // ==================== MOVIMENTI ====================
 async function loadMovimenti() {
