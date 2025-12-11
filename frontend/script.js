@@ -1339,9 +1339,7 @@ async function deleteUser(id) {
   try {
     const currentUser = localStorage.getItem("username") || "";
     const res = await fetch(
-      `${API_URL}/utenti/${id}?current_user=${encodeURIComponent(
-        currentUser
-      )}`,
+      `${API_URL}/utenti/${id}?current_user=${encodeURIComponent(currentUser)}`,
       { method: "DELETE" }
     );
     const data = await res.json();
