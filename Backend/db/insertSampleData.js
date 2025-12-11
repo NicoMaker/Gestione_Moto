@@ -88,23 +88,29 @@ function getAllQuery(query, params = []) {
 }
 
 // Funzioni di utilità random
-function randomElement(array) {
-  return array[Math.floor(Math.random() * array.length)];
-}
+const randomElement = (array) =>
+  array[Math.floor(Math.random() * array.length)];
 
-function randomInt(min, max) {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
+const randomInt = (min, max) =>
+  Math.floor(Math.random() * (max - min + 1)) + min;
 
 /**
- * Funzione Modificata: Genera un float casuale e RESTITUISCE LA STRINGA
- * formattata con esattamente due cifre decimali (es. "0.50").
- * Questo impedisce a parseFloat di eliminare lo zero finale.
+ * Genera un float casuale con virgola (circa 70% dei casi)
+ * o un numero intero (circa 30% dei casi).
+ * Restituisce sempre una stringa formattata con esattamente 2 decimali.
  */
-function randomFloat(min, max, decimals = 2) {
-  const value = Math.random() * (max - min) + min;
-  // Rimuoviamo parseFloat() e restituiamo direttamente la stringa formattata.
-  return value.toFixed(decimals); 
+function randomFloat(min, max) {
+  const useDecimal = Math.random() < 0.7; // 70% con virgola, 30% senza
+
+  if (useDecimal) {
+    const value = Math.random() * (max - min) + min;
+    return value.toFixed(2);
+  } else {
+    const intValue =
+      Math.floor(Math.random() * (Math.floor(max) - Math.ceil(min) + 1)) +
+      Math.ceil(min);
+    return intValue.toFixed(2); // Anche i numeri interi vengono formattati come "10.00"
+  }
 }
 
 function randomDate(daysBack) {
@@ -164,26 +170,35 @@ async function seedDatabase() {
   try {
     // Carica configurazione da JSON
     const configPath = path.join(__dirname, "config.json");
-    // Uso un template di esempio per simulare il contenuto
     const seedConfigTemplate = {
-        nomi_utenti: ["Mario", "Luigi", "Giulia", "Andrea", "Sara"],
-        marche: ["Ducati", "Yamaha", "KTM", "BMW", "Kawasaki"],
-        categorie_prodotti: [
-            { categoria: "Olio", prefissi: ["Sintetico", "Minerale"], prezzoMin: 8.5, prezzoMax: 15.0 },
-            { categoria: "Filtro", prefissi: ["Aria", "Olio"], prezzoMin: 4.0, prezzoMax: 20.0 }
-        ],
-        specifiche: ["Standard", "Racing", "Pro"],
-        dimensioni: ["M5", "M10", "L15"],
-        fornitori: ["Fornitore A", "Fornitore B"],
-        clienti: ["Privato", "Azienda"]
+      nomi_utenti: ["Mario", "Luigi", "Giulia", "Andrea", "Sara"],
+      marche: ["Ducati", "Yamaha", "KTM", "BMW", "Kawasaki"],
+      categorie_prodotti: [
+        {
+          categoria: "Olio",
+          prefissi: ["Sintetico", "Minerale"],
+          prezzoMin: 8.5,
+          prezzoMax: 15.0,
+        },
+        {
+          categoria: "Filtro",
+          prefissi: ["Aria", "Olio"],
+          prezzoMin: 4.0,
+          prezzoMax: 20.0,
+        },
+      ],
+      specifiche: ["Standard", "Racing", "Pro"],
+      dimensioni: ["M5", "M10", "L15"],
+      fornitori: ["Fornitore A", "Fornitore B"],
+      clienti: ["Privato", "Azienda"],
     };
 
     if (!fs.existsSync(configPath)) {
-      console.log("❌ File seed-config.json non trovato!");
+      console.log("⚠ File config.json non trovato!");
       console.log("📝 Creazione file di configurazione completo...");
 
       fs.writeFileSync(configPath, JSON.stringify(seedConfigTemplate, null, 2));
-      console.log("✅ File seed-config.json creato con dati di esempio!\n");
+      console.log("✅ File config.json creato con dati di esempio!\n");
     }
 
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
@@ -227,7 +242,7 @@ async function seedDatabase() {
       (await askQuestion("Giorni di storico (default 180): ")) || "180"
     );
 
-    console.log("\n⚙️  Configurazione:");
+    console.log("\n⚙️ Configurazione:");
     console.log(`  • Utenti: ${numUtenti}`);
     console.log(`  • Marche: ${numMarche}`);
     console.log(`  • Prodotti: ${numProdotti}`);
@@ -236,16 +251,12 @@ async function seedDatabase() {
     console.log(`  • Storico: ${giorniStorico} giorni`);
     console.log("\n🚀 Avvio elaborazione...\n");
 
-    console.log("🏗️  Verifica e creazione tabelle...");
+    console.log("🗃️ Verifica e creazione tabelle...");
     await new Promise((resolve) => {
-      // initDatabase dovrebbe essere una funzione definita in un altro file
-      // che crea le tabelle. La eseguiamo qui per simulare la preparazione.
-      // Se initDatabase è sincrono o inesistente, la riga successiva fallirà.
       try {
-          initDatabase(); 
+        initDatabase();
       } catch (e) {
-          // Ignoriamo l'errore se initDatabase non è definito,
-          // assumendo che sia un placeholder per la configurazione reale.
+        // Ignoriamo l'errore se initDatabase non è definito
       }
       setTimeout(resolve, 1000);
     });
@@ -270,7 +281,7 @@ async function seedDatabase() {
     console.log(`✅ ${numUtenti} utenti creati!\n`);
 
     // 2. CREAZIONE MARCHE IN BATCH
-    console.log("🏷️  Creazione marche in batch...");
+    console.log("🏷️ Creazione marche in batch...");
     const marcheToInsert = [];
     const marcheIds = {};
 
@@ -349,25 +360,24 @@ async function seedDatabase() {
     for (let i = 0; i < numCarichi; i++) {
       const prodotto = randomElement(prodottiInfo);
       const quantita = randomInt(10, 200);
-      
-      // CHIAVE: Utilizza la stringa formattata con 2 decimali
-      const prezzoString = randomFloat(prodotto.prezzoMin, prodotto.prezzoMax); 
+
+      // Utilizza la stringa formattata con 2 decimali
+      const prezzoString = randomFloat(prodotto.prezzoMin, prodotto.prezzoMax);
       // Calcola il totale usando il float per la matematica
       const prezzoFloat = parseFloat(prezzoString);
-      const prezzoTotale = (quantita * prezzoFloat).toFixed(2); // Formatta anche il totale
+      const prezzoTotale = (quantita * prezzoFloat).toFixed(2);
 
       const fornitore = randomElement(config.fornitori);
       const anno = new Date().getFullYear();
       const fattura = `FT-${anno}-${String(i + 1).padStart(6, "0")}`;
       const dataMovimento = randomDate(giorniStorico);
       const dataRegistrazione = new Date().toISOString();
-      
-      // Inserisci prezzoString, che garantisce il formato "0.50"
+
       carichiMovimenti.push([
         prodottiIds[prodotto.nome],
         quantita,
-        prezzoString, // <--- Stringa formattata "0.50"
-        prezzoTotale, // <--- Stringa formattata del totale
+        prezzoString, // Stringa formattata
+        prezzoTotale, // Stringa formattata del totale
         dataMovimento,
         dataRegistrazione,
         fattura,
@@ -378,7 +388,7 @@ async function seedDatabase() {
         prodottiIds[prodotto.nome],
         quantita,
         quantita,
-        prezzoString, // <--- Stringa formattata "0.50"
+        prezzoString, // Stringa formattata
         dataMovimento,
         dataRegistrazione,
         fattura,
@@ -389,7 +399,6 @@ async function seedDatabase() {
       movimentoId++;
     }
 
-    // CORREZIONE APPLICATA QUI: aggiunta la colonna 'tipo' con il valore fisso 'carico'
     await batchInsert(
       `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
         data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
@@ -443,27 +452,25 @@ async function seedDatabase() {
         [prodottoId]
       );
 
-      // Prezzo dal lotto è già una stringa formattata (es. "12.50")
-      const prezzoString = lotto ? lotto.prezzo : "0.00"; 
-      const prezzoFloat = parseFloat(prezzoString); // Usiamo il float solo per calcolare il totale
+      // Prezzo dal lotto è già una stringa formattata
+      const prezzoString = lotto ? lotto.prezzo : "0.00";
+      const prezzoFloat = parseFloat(prezzoString);
 
       // Calcolo e formattazione del totale
       const prezzoTotale = (quantita * prezzoFloat).toFixed(2);
-      
-      // Inserisci scarico (il tipo è già specificato qui come 'scarico')
+
+      // MODIFICA: Per gli scarichi, fattura_doc e fornitore_cliente_id sono NULL
       await runQuery(
         `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
           data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
-          VALUES (?, 'scarico', ?, ?, ?, ?, ?, ?, ?)`,
+          VALUES (?, 'scarico', ?, ?, ?, ?, ?, NULL, NULL)`,
         [
           prodottoId,
           quantita,
-          prezzoString, // <--- Stringa formattata "0.50"
-          prezzoTotale, // <--- Stringa formattata del totale
+          prezzoString,
+          prezzoTotale,
           dataMovimento,
           dataRegistrazione,
-          fattura,
-          cliente,
         ]
       );
 
@@ -517,7 +524,6 @@ async function seedDatabase() {
     console.log(`  • Tempo di esecuzione: ${duration} secondi`);
   } catch (error) {
     console.error("❌ Errore durante il popolamento:", error);
-    // In caso di errore, proviamo comunque a chiudere il readline e il DB
     if (rl) rl.close();
     if (db) db.close();
   } finally {
