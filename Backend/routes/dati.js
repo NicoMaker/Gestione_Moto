@@ -1,8 +1,16 @@
-// routes/dati.js
+// routes/dati.js - VERSIONE COMPLETA CON FORMATTAZIONE DECIMALI
 
 const express = require("express");
 const router = express.Router();
 const { db } = require("../db/init");
+
+// 🎯 FUNZIONE HELPER PER FORMATTARE I DECIMALI A 2 CIFRE
+function formatDecimal(value) {
+  if (value === null || value === undefined) return null;
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+  return parseFloat(num.toFixed(2)); // Forza 2 decimali
+}
 
 // GET - Lista tutti i movimenti con marca e descrizione
 router.get("/", (req, res) => {
@@ -33,7 +41,17 @@ router.get("/", (req, res) => {
 
   db.all(query, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+
+    // 🎯 FORMATTA TUTTI I DECIMALI A 2 CIFRE
+    const formattedRows = rows.map((row) => ({
+      ...row,
+      quantita: formatDecimal(row.quantita),
+      prezzo: formatDecimal(row.prezzo),
+      prezzo_totale: formatDecimal(row.prezzo_totale),
+      prezzo_unitario_scarico: formatDecimal(row.prezzo_unitario_scarico),
+    }));
+
+    res.json(formattedRows);
   });
 });
 
@@ -61,10 +79,11 @@ router.post("/", (req, res) => {
       .json({ error: "Formato data non valido (YYYY-MM-DD)" });
   }
 
+  // 🎯 PARSING DECIMALE CON VIRGOLA E PUNTO + FORMATTAZIONE A 2 DECIMALI
   const qtaString = String(quantita).replace(",", ".");
-  const qty = Number.parseFloat(qtaString);
+  const qty = formatDecimal(qtaString);
 
-  if (isNaN(qty) || qty <= 0) {
+  if (qty === null || qty <= 0) {
     return res
       .status(400)
       .json({ error: "Quantità deve essere maggiore di 0" });
@@ -74,15 +93,15 @@ router.post("/", (req, res) => {
 
   if (tipo === "carico") {
     const prezzoString = String(prezzo).replace(",", ".");
-    const prc = Number.parseFloat(prezzoString);
+    const prc = formatDecimal(prezzoString);
 
-    if (isNaN(prc) || prc <= 0) {
+    if (prc === null || prc <= 0) {
       return res.status(400).json({
         error: "Prezzo obbligatorio e maggiore di 0 per il carico",
       });
     }
 
-    const prezzoTotale = prc * qty;
+    const prezzoTotale = formatDecimal(prc * qty);
 
     db.serialize(() => {
       db.run("BEGIN TRANSACTION;");
@@ -133,6 +152,7 @@ router.post("/", (req, res) => {
       );
     });
   } else {
+    // SCARICO
     db.all(
       "SELECT id, quantita_rimanente, prezzo FROM lotti WHERE prodotto_id = ? AND quantita_rimanente > 0 ORDER BY data_registrazione ASC",
       [prodotto_id],
@@ -140,13 +160,15 @@ router.post("/", (req, res) => {
         if (err) return res.status(500).json({ error: err.message });
 
         const giacenzaTotale = lotti.reduce(
-          (sum, l) => sum + l.quantita_rimanente,
+          (sum, l) => sum + formatDecimal(l.quantita_rimanente),
           0
         );
 
         if (giacenzaTotale < qty) {
           return res.status(400).json({
-            error: `Giacenza insufficiente (disponibili: ${giacenzaTotale})`,
+            error: `Giacenza insufficiente (disponibili: ${formatDecimal(
+              giacenzaTotale
+            )})`,
           });
         }
 
@@ -159,19 +181,23 @@ router.post("/", (req, res) => {
 
           const qtaDaQuestoLotto = Math.min(
             daScaricare,
-            lotto.quantita_rimanente
+            formatDecimal(lotto.quantita_rimanente)
           );
-          const nuovaQta = lotto.quantita_rimanente - qtaDaQuestoLotto;
+          const nuovaQta = formatDecimal(
+            formatDecimal(lotto.quantita_rimanente) - qtaDaQuestoLotto
+          );
 
-          costoTotaleScarico += qtaDaQuestoLotto * lotto.prezzo;
+          costoTotaleScarico += qtaDaQuestoLotto * formatDecimal(lotto.prezzo);
 
           updates.push({
             id: lotto.id,
             nuova_quantita: nuovaQta,
           });
 
-          daScaricare -= qtaDaQuestoLotto;
+          daScaricare = formatDecimal(daScaricare - qtaDaQuestoLotto);
         }
+
+        costoTotaleScarico = formatDecimal(costoTotaleScarico);
 
         db.serialize(() => {
           db.run("BEGIN TRANSACTION;");
@@ -258,6 +284,7 @@ router.delete("/:id", (req, res) => {
         }
 
         const { prodotto_id, tipo, quantita } = movimento;
+        const qty = formatDecimal(quantita);
 
         if (tipo === "carico") {
           const lottoQuery = `
@@ -273,10 +300,10 @@ router.delete("/:id", (req, res) => {
               return res.status(500).json({ error: err.message });
             }
 
-            if (
-              !lotto ||
-              lotto.quantita_rimanente !== lotto.quantita_iniziale
-            ) {
+            const qtaRimanente = formatDecimal(lotto?.quantita_rimanente);
+            const qtaIniziale = formatDecimal(lotto?.quantita_iniziale);
+
+            if (!lotto || qtaRimanente !== qtaIniziale) {
               db.run("ROLLBACK;");
               return res.status(400).json({
                 error:
@@ -305,7 +332,7 @@ router.delete("/:id", (req, res) => {
             });
           });
         } else if (tipo === "scarico") {
-          let qtaDaRipristinare = quantita;
+          let qtaDaRipristinare = qty;
 
           const lottiQuery = `
             SELECT id, quantita_iniziale, quantita_rimanente 
@@ -325,17 +352,20 @@ router.delete("/:id", (req, res) => {
             for (const lotto of lotti) {
               if (qtaDaRipristinare <= 0) break;
 
-              const qtaConsumata =
-                lotto.quantita_iniziale - lotto.quantita_rimanente;
+              const qtaIniziale = formatDecimal(lotto.quantita_iniziale);
+              const qtaRimanente = formatDecimal(lotto.quantita_rimanente);
+              const qtaConsumata = formatDecimal(qtaIniziale - qtaRimanente);
               const qtaDaQuestoLotto = Math.min(
                 qtaDaRipristinare,
                 qtaConsumata
               );
 
               if (qtaDaQuestoLotto > 0) {
-                const nuovaQta = lotto.quantita_rimanente + qtaDaQuestoLotto;
+                const nuovaQta = formatDecimal(qtaRimanente + qtaDaQuestoLotto);
                 updates.push({ id: lotto.id, nuova_quantita: nuovaQta });
-                qtaDaRipristinare -= qtaDaQuestoLotto;
+                qtaDaRipristinare = formatDecimal(
+                  qtaDaRipristinare - qtaDaQuestoLotto
+                );
               }
             }
 

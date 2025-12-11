@@ -1,8 +1,16 @@
-// routes/magazzino.js
+// routes/magazzino.js - VERSIONE COMPLETA CON FORMATTAZIONE DECIMALI
 
 const express = require("express");
 const router = express.Router();
 const { db } = require("../db/init");
+
+// 🎯 FUNZIONE HELPER PER FORMATTARE I DECIMALI A 2 CIFRE
+function formatDecimal(value) {
+  if (value === null || value === undefined) return 0;
+  const num = parseFloat(value);
+  if (isNaN(num)) return 0;
+  return parseFloat(num.toFixed(2));
+}
 
 // GET - Valore totale del magazzino (FIFO)
 router.get("/valore-magazzino", (req, res) => {
@@ -14,7 +22,7 @@ router.get("/valore-magazzino", (req, res) => {
 
   db.get(query, (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json({ valore_totale: row.valore_totale || 0 });
+    res.json({ valore_totale: formatDecimal(row.valore_totale) });
   });
 });
 
@@ -61,22 +69,30 @@ router.get("/riepilogo", (req, res) => {
         if (!lottiPerProdotto[lotto.prodotto_id]) {
           lottiPerProdotto[lotto.prodotto_id] = [];
         }
-        lottiPerProdotto[lotto.prodotto_id].push(lotto);
+        // 🎯 FORMATTA DECIMALI NEI LOTTI
+        lottiPerProdotto[lotto.prodotto_id].push({
+          ...lotto,
+          quantita_rimanente: formatDecimal(lotto.quantita_rimanente),
+          prezzo: formatDecimal(lotto.prezzo),
+        });
       });
 
+      // 🎯 FORMATTA DECIMALI NEL RIEPILOGO
       const riepilogo = rows.map((row) => ({
         ...row,
+        giacenza: formatDecimal(row.giacenza),
+        valore_totale: formatDecimal(row.valore_totale),
         lotti: lottiPerProdotto[row.id] || [],
       }));
 
       const valoreTotale = riepilogo.reduce(
-        (sum, r) => sum + Number.parseFloat(r.valore_totale || 0),
+        (sum, r) => sum + formatDecimal(r.valore_totale),
         0
       );
 
       res.json({
         riepilogo: riepilogo,
-        valore_totale: valoreTotale,
+        valore_totale: formatDecimal(valoreTotale),
       });
     });
   });
@@ -101,7 +117,15 @@ router.get("/riepilogo/:prodottoId", (req, res) => {
 
   db.all(query, [prodottoId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+
+    // 🎯 FORMATTA DECIMALI
+    const formattedRows = rows.map((row) => ({
+      ...row,
+      quantita_rimanente: formatDecimal(row.quantita_rimanente),
+      prezzo: formatDecimal(row.prezzo),
+    }));
+
+    res.json(formattedRows);
   });
 });
 
@@ -129,7 +153,7 @@ router.get("/storico-giacenza/:date", (req, res) => {
       let productsProcessed = 0;
 
       if (prodotti.length === 0)
-        return res.json({ riepilogo: [], valore_totale: 0 });
+        return res.json({ riepilogo: [], valore_totale: formatDecimal(0) });
 
       prodotti.forEach((prodotto) => {
         const query = `
@@ -171,7 +195,7 @@ router.get("/storico-giacenza/:date", (req, res) => {
               if (productsProcessed === prodotti.length) {
                 return res.json({
                   riepilogo: results,
-                  valore_totale: totalValue,
+                  valore_totale: formatDecimal(totalValue),
                 });
               }
               return;
@@ -185,15 +209,15 @@ router.get("/storico-giacenza/:date", (req, res) => {
               if (mov.tipo_movimento === "lotto") {
                 lottiAttivi.push({
                   id: mov.id,
-                  qty_iniziale: mov.quantita,
-                  qty_rimanente: mov.quantita,
-                  prezzo: mov.prezzo,
+                  qty_iniziale: formatDecimal(mov.quantita),
+                  qty_rimanente: formatDecimal(mov.quantita),
+                  prezzo: formatDecimal(mov.prezzo),
                   data_carico: mov.data_carico,
                   fattura_doc: mov.fattura_doc,
                   fornitore: mov.fornitore,
                 });
               } else if (mov.tipo_movimento === "scarico") {
-                let qtaDaScaricare = mov.quantita;
+                let qtaDaScaricare = formatDecimal(mov.quantita);
 
                 for (let i = 0; i < lottiAttivi.length; i++) {
                   if (qtaDaScaricare <= 0) break;
@@ -206,8 +230,10 @@ router.get("/storico-giacenza/:date", (req, res) => {
                     lotto.qty_rimanente
                   );
 
-                  lotto.qty_rimanente -= qtaPrelevata;
-                  qtaDaScaricare -= qtaPrelevata;
+                  lotto.qty_rimanente = formatDecimal(
+                    lotto.qty_rimanente - qtaPrelevata
+                  );
+                  qtaDaScaricare = formatDecimal(qtaDaScaricare - qtaPrelevata);
                 }
               }
             });
@@ -217,23 +243,25 @@ router.get("/storico-giacenza/:date", (req, res) => {
             );
 
             lottiRimanenti.forEach((l) => {
-              totaleGiacenza += l.qty_rimanente;
-              totaleValore += l.qty_rimanente * l.prezzo;
+              totaleGiacenza = formatDecimal(totaleGiacenza + l.qty_rimanente);
+              totaleValore = formatDecimal(
+                totaleValore + l.qty_rimanente * l.prezzo
+              );
             });
 
-            totalValue += totaleValore;
+            totalValue = formatDecimal(totalValue + totaleValore);
 
             results.push({
               id: prodotto.id,
               nome: prodotto.nome,
               marca_nome: prodotto.marca_nome,
               descrizione: prodotto.descrizione,
-              giacenza: totaleGiacenza,
-              valore_totale: totaleValore,
+              giacenza: formatDecimal(totaleGiacenza),
+              valore_totale: formatDecimal(totaleValore),
               lotti: lottiRimanenti.map((l) => ({
                 id: l.id,
-                quantita_rimanente: l.qty_rimanente,
-                prezzo: l.prezzo,
+                quantita_rimanente: formatDecimal(l.qty_rimanente),
+                prezzo: formatDecimal(l.prezzo),
                 data_carico: l.data_carico,
                 fattura_doc: l.fattura_doc,
                 fornitore: l.fornitore,
@@ -242,7 +270,10 @@ router.get("/storico-giacenza/:date", (req, res) => {
 
             productsProcessed++;
             if (productsProcessed === prodotti.length) {
-              res.json({ riepilogo: results, valore_totale: totalValue });
+              res.json({
+                riepilogo: results,
+                valore_totale: formatDecimal(totalValue),
+              });
             }
           }
         );

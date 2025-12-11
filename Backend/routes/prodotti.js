@@ -1,8 +1,16 @@
-// routes/prodotti.js
+// routes/prodotti.js - VERSIONE COMPLETA CON FORMATTAZIONE DECIMALI
 
 const express = require("express");
 const router = express.Router();
 const { db } = require("../db/init");
+
+// 🎯 FUNZIONE HELPER PER FORMATTARE I DECIMALI A 2 CIFRE
+function formatDecimal(value) {
+  if (value === null || value === undefined) return null;
+  const num = parseFloat(value);
+  if (isNaN(num)) return null;
+  return parseFloat(num.toFixed(2));
+}
 
 // GET - Lista tutti i prodotti con giacenza, marca e descrizione
 router.get("/", (req, res) => {
@@ -24,7 +32,14 @@ router.get("/", (req, res) => {
 
   db.all(query, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-    res.json(rows);
+
+    // 🎯 FORMATTA GIACENZA A 2 DECIMALI
+    const formattedRows = rows.map((row) => ({
+      ...row,
+      giacenza: formatDecimal(row.giacenza),
+    }));
+
+    res.json(formattedRows);
   });
 });
 
@@ -58,7 +73,7 @@ router.post("/", (req, res) => {
         [this.lastID],
         (err, row) => {
           if (err) return res.status(500).json({ error: err.message });
-          res.json({ ...row, giacenza: 0 });
+          res.json({ ...row, giacenza: formatDecimal(0) }); // 🎯 Giacenza 0.00
         }
       );
     }
@@ -110,10 +125,12 @@ router.delete("/:id", (req, res) => {
           return res.status(500).json({ error: err.message });
         }
 
-        if (row.giacenza > 0) {
+        const giacenza = formatDecimal(row.giacenza);
+
+        if (giacenza > 0) {
           db.run("ROLLBACK;");
           return res.status(400).json({
-            error: `Impossibile eliminare: giacenza residua di ${row.giacenza} pezzi.`,
+            error: `Impossibile eliminare: giacenza residua di ${giacenza} pezzi.`,
           });
         }
 

@@ -14,6 +14,14 @@ let allStorico = [];
 let storico = [];
 let allUtenti = [];
 
+// Logout forzato con messaggio opzionale
+function forceLogout(message) {
+  if (message) alert(message);
+  localStorage.removeItem("username");
+  localStorage.removeItem("activeSection");
+  window.location.href = "index.html";
+}
+
 // ==================== INIZIALIZZAZIONE ====================
 document.addEventListener("DOMContentLoaded", () => {
   const username = localStorage.getItem("username");
@@ -258,7 +266,9 @@ function renderProdotti() {
       <td><span class="badge badge-marca">${
         p.marca_nome ? p.marca_nome.toUpperCase() : "N/A"
       }</span></td>
-      <td><span class="badge-giacenza">${p.giacenza || 0} pz</span></td>
+      <td><span class="badge-giacenza">${formatQuantity(
+        p.giacenza ?? 0
+      )} pz</span></td>
       <td>${p.descrizione || "-"}</td>
       <td class="text-right">
         <button class="btn-icon" onclick="editProdotto(${
@@ -1327,12 +1337,24 @@ async function deleteUser(id) {
   if (!confirm("Sei sicuro di voler eliminare questo utente?")) return;
 
   try {
-    const res = await fetch(`${API_URL}/utenti/${id}`, { method: "DELETE" });
+    const currentUser = localStorage.getItem("username") || "";
+    const res = await fetch(
+      `${API_URL}/utenti/${id}?current_user=${encodeURIComponent(
+        currentUser
+      )}`,
+      { method: "DELETE" }
+    );
     const data = await res.json();
 
     if (res.ok) {
-      alert("Utente eliminato con successo!");
-      loadUtenti();
+      if (data.utente_eliminato) {
+        forceLogout(
+          "Hai eliminato il tuo account. Verrai disconnesso e dovrai effettuare di nuovo il login."
+        );
+      } else {
+        alert("Utente eliminato con successo!");
+        loadUtenti();
+      }
     } else {
       alert(data.error || "Errore durante l'eliminazione");
     }
@@ -1353,6 +1375,9 @@ document.getElementById("formUser").addEventListener("submit", async (e) => {
 
   const body = { username };
   if (password) body.password = password;
+  if (id) {
+    body.current_user = localStorage.getItem("username") || null;
+  }
 
   try {
     const res = await fetch(url, {
@@ -1364,9 +1389,18 @@ document.getElementById("formUser").addEventListener("submit", async (e) => {
     const data = await res.json();
 
     if (res.ok) {
+      const mustLogout =
+        data.username_modificato || data.password_modificata || false;
+
       alert(id ? "Utente aggiornato!" : "Utente creato!");
       closeUserModal();
-      loadUtenti();
+      if (mustLogout) {
+        forceLogout(
+          "Le tue credenziali sono cambiate. Effettua di nuovo l'accesso."
+        );
+      } else {
+        loadUtenti();
+      }
     } else {
       alert(data.error || "Errore durante il salvataggio");
     }
@@ -1611,6 +1645,16 @@ function formatNumber(num) {
   } else {
     return parts.join(".");
   }
+}
+
+// Formatta quantità: senza decimali se intero, altrimenti 2 decimali con virgola
+function formatQuantity(num) {
+  const n = parseFloat(num);
+  if (isNaN(n)) return "0";
+  if (Number.isInteger(n)) {
+    return n.toString();
+  }
+  return formatNumber(n);
 }
 
 // ==================== GESTIONE INPUT DECIMALI (MAX 2 CIFRE) ====================

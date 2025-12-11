@@ -1,4 +1,4 @@
-// routes/utenti.js
+// routes/utenti.js - VERSIONE COMPLETA CON LOGOUT AUTOMATICO
 
 const express = require("express");
 const router = express.Router();
@@ -81,17 +81,15 @@ router.post("/", async (req, res) => {
 });
 
 // PUT /api/utenti/:id - modifica utente
+// 🎯 RESTITUISCE username_modificato SE L'UTENTE MODIFICATO È QUELLO LOGGATO
 router.put("/:id", async (req, res) => {
   const { id } = req.params;
-  const { username, password } = req.body;
+  const { username, password, current_user } = req.body; // 🆕 current_user dal frontend
 
   if (!username && !password) {
-    return res
-      .status(400)
-      .json({
-        error:
-          "Almeno Username o Password sono obbligatori per l'aggiornamento",
-      });
+    return res.status(400).json({
+      error: "Almeno Username o Password sono obbligatori per l'aggiornamento",
+    });
   }
 
   db.get("SELECT * FROM users WHERE id = ?", [id], async (err1, user) => {
@@ -104,6 +102,9 @@ router.put("/:id", async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "Utente non trovato" });
     }
+
+    // 🔍 Verifica se l'utente modificato è quello loggato
+    const isCurrentUser = user.username === current_user;
 
     let newUsername = username ? username.trim() : user.username;
     let newPasswordHash = user.password;
@@ -159,13 +160,19 @@ router.put("/:id", async (req, res) => {
                   .status(500)
                   .json({ error: "Errore durante l'aggiornamento utente" });
               }
-              res.json({ id, username: newUsername });
+
+              // 🎯 RISPOSTA CON FLAG username_modificato
+              res.json({
+                id,
+                username: newUsername,
+                username_modificato: isCurrentUser, // 🆕 Flag per il frontend
+              });
             }
           );
         }
       );
     } else {
-      // Aggiornamento solo se l'username non è cambiato o solo la password
+      // Aggiornamento solo password
       db.run(
         "UPDATE users SET username = ?, password = ? WHERE id = ?",
         [newUsername, newPasswordHash, id],
@@ -176,16 +183,26 @@ router.put("/:id", async (req, res) => {
               .status(500)
               .json({ error: "Errore durante l'aggiornamento utente" });
           }
-          res.json({ id, username: newUsername });
+
+          // 🎯 RISPOSTA CON FLAG password_modificata
+          res.json({
+            id,
+            username: newUsername,
+            password_modificata: isCurrentUser && password ? true : false, // 🆕
+          });
         }
       );
     }
   });
 });
 
-// DELETE /api/utenti/:id - elimina utente (ma non se è l'unico)
+// DELETE /api/utenti/:id - elimina utente
+// 🎯 RESTITUISCE utente_eliminato SE L'UTENTE ELIMINATO È QUELLO LOGGATO
 router.delete("/:id", (req, res) => {
   const { id } = req.params;
+
+  // 🆕 Ricevi current_user dal query param (es. ?current_user=Admin)
+  const currentUser = req.query.current_user;
 
   db.get("SELECT COUNT(*) AS total FROM users", [], (err, row) => {
     if (err) {
@@ -199,17 +216,42 @@ router.delete("/:id", (req, res) => {
       });
     }
 
-    db.run("DELETE FROM users WHERE id = ?", [id], function (err2) {
+    // 🔍 Recupera l'utente prima di eliminarlo
+    db.get("SELECT username FROM users WHERE id = ?", [id], (err2, user) => {
       if (err2) {
-        console.error("Errore eliminazione utente:", err2);
+        console.error("Errore recupero utente per eliminazione:", err2);
         return res
           .status(500)
-          .json({ error: "Errore durante l'eliminazione utente" });
+          .json({ error: "Errore durante il recupero utente" });
       }
-      if (this.changes === 0) {
+
+      if (!user) {
         return res.status(404).json({ error: "Utente non trovato" });
       }
-      res.json({ success: true, id });
+
+      // 🔍 Verifica se l'utente eliminato è quello loggato
+      const isCurrentUser = user.username === currentUser;
+
+      // Elimina l'utente
+      db.run("DELETE FROM users WHERE id = ?", [id], function (err3) {
+        if (err3) {
+          console.error("Errore eliminazione utente:", err3);
+          return res
+            .status(500)
+            .json({ error: "Errore durante l'eliminazione utente" });
+        }
+
+        if (this.changes === 0) {
+          return res.status(404).json({ error: "Utente non trovato" });
+        }
+
+        // 🎯 RISPOSTA CON FLAG utente_eliminato
+        res.json({
+          success: true,
+          id,
+          utente_eliminato: isCurrentUser, // 🆕 Flag per il frontend
+        });
+      });
     });
   });
 });
