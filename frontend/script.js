@@ -100,6 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
     // esegui la funzione per mostrare/nascondere i campi.
     movimentoTipoSelect.addEventListener("change", togglePrezzoField);
   }
+
 });
 
 // ==================== MARCHE ====================
@@ -4892,3 +4893,314 @@ console.log(`
 
 // Esegui test automatico in modalità sviluppo (commentare in produzione)
 // testFormatQuantita();
+
+
+// ==================== GESTIONE SESSIONE ====================
+// ⚠️ INSERIRE QUESTE FUNZIONI SUBITO DOPO "let allUtenti = [];" E PRIMA DI "document.addEventListener('DOMContentLoaded'...)"
+
+let intervalloVerifica = null;
+
+/**
+ * Verifica se l'utente ha una sessione attiva
+ * @returns {boolean} true se la sessione è valida, false altrimenti
+ */
+function verificaSessioneAttiva() {
+  const username = sessionStorage.getItem("username");
+  const sessionToken = sessionStorage.getItem("sessionToken");
+
+  if (!username || !sessionToken) {
+    // Sessione non presente, reindirizza al login
+    mostraMessaggioLogout("Sessione scaduta. Effettua nuovamente il login.");
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Verifica la sessione con il server
+ * Controlla se l'utente è stato eliminato, modificato o se la password è cambiata
+ * @returns {Promise<boolean>} true se la sessione è ancora valida
+ */
+async function verificaSessioneConServer() {
+  const username = sessionStorage.getItem("username");
+  const sessionToken = sessionStorage.getItem("sessionToken");
+
+  if (!username || !sessionToken) {
+    return false;
+  }
+
+  try {
+    const response = await fetch(
+      `${API_URL}/auth/verify-session?username=${encodeURIComponent(username)}&sessionToken=${encodeURIComponent(sessionToken)}`
+    );
+
+    const data = await response.json();
+
+    if (!data.valid) {
+      let messaggio = "Sessione non valida.";
+
+      if (data.reason === "user_deleted") {
+        messaggio = "⚠️ Il tuo account è stato eliminato. Contatta l'amministratore.";
+      } else if (data.reason === "password_changed") {
+        messaggio = "🔐 La tua password è stata modificata. Effettua nuovamente il login.";
+      } else if (data.reason === "username_changed") {
+        messaggio = "👤 Il tuo username è stato modificato. Effettua nuovamente il login.";
+      }
+
+      logoutUtente(messaggio);
+      return false;
+    }
+
+    // ✅ AGGIORNA USERNAME SE È STATO MODIFICATO (solo se la sessione è ancora valida)
+    if (data.username && data.username !== username) {
+      sessionStorage.setItem("username", data.username);
+      const currentUserElement = document.getElementById("currentUser");
+      if (currentUserElement) {
+        currentUserElement.textContent = data.username;
+      }
+    }
+
+    return true;
+  } catch (error) {
+    console.error("Errore verifica sessione:", error);
+    // In caso di errore di rete, non disconnettiamo l'utente
+    return true;
+  }
+}
+
+/**
+ * Avvia il controllo periodico della sessione (ogni 5 secondi)
+ */
+function avviaControlloPeriodico() {
+  // Prima verifica immediata
+  verificaSessioneConServer();
+
+  // Poi controllo periodico ogni 5 secondi
+  intervalloVerifica = setInterval(() => {
+    verificaSessioneConServer();
+  }, 5000);
+
+  console.log("✅ Controllo sessione attivato (ogni 5 secondi)");
+}
+
+/**
+ * Ferma il controllo periodico della sessione
+ */
+function fermaControlloPeriodico() {
+  if (intervalloVerifica) {
+    clearInterval(intervalloVerifica);
+    intervalloVerifica = null;
+    console.log("🛑 Controllo sessione disattivato");
+  }
+}
+
+/**
+ * Esegue il logout dell'utente
+ * @param {string} messaggio - Messaggio da mostrare all'utente
+ */
+function logoutUtente(messaggio = null) {
+  fermaControlloPeriodico();
+  
+  // Pulisce la sessione
+  sessionStorage.removeItem("username");
+  sessionStorage.removeItem("userId");
+  sessionStorage.removeItem("sessionToken");
+  sessionStorage.removeItem("loginTime");
+  sessionStorage.removeItem("activeSection");
+
+  // Salva il messaggio di logout
+  if (messaggio) {
+    sessionStorage.setItem("logoutMessage", messaggio);
+  }
+
+  console.log("🚪 Logout eseguito:", messaggio || "Nessun messaggio");
+
+  // Reindirizza al login
+  window.location.href = "index.html";
+}
+
+/**
+ * Mostra un messaggio di logout nella pagina di login
+ * @param {string} messaggio - Messaggio da mostrare
+ */
+function mostraMessaggioLogout(messaggio) {
+  sessionStorage.setItem("logoutMessage", messaggio);
+  window.location.href = "index.html";
+}
+
+// ==================== ELIMINA UTENTE CON CONTROLLO SESSIONE ====================
+// ⚠️ SOSTITUISCI la funzione deleteUser esistente con questa
+
+async function deleteUser(id) {
+  // ✅ VERIFICA SE STAI ELIMINANDO TE STESSO
+  const currentUserId = sessionStorage.getItem("userId");
+  const currentUsername = sessionStorage.getItem("username");
+  
+  // Trova l'utente da eliminare
+  const userToDelete = allUtenti.find((u) => u.id == id);
+  const isDeletingSelf = currentUserId && parseInt(currentUserId) === parseInt(id);
+
+  // Messaggio di conferma normale
+  let confirmMessage = `Sei sicuro di voler eliminare l'utente "${userToDelete?.username || 'questo utente'}"?`;
+  
+  // Messaggio speciale se stai eliminando te stesso
+  if (isDeletingSelf) {
+    confirmMessage = `⚠️ ATTENZIONE: Stai per eliminare il tuo stesso account!\n\n` +
+                     `Utente: ${currentUsername}\n\n` +
+                     `Verrai disconnesso immediatamente e non potrai più accedere.\n\n` +
+                     `Sei ASSOLUTAMENTE SICURO di voler continuare?`;
+  }
+
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+
+  // Conferma aggiuntiva se stai eliminando te stesso
+  if (isDeletingSelf) {
+    if (!confirm("🚨 ULTIMA CONFERMA: Eliminare definitivamente il tuo account?")) {
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch(`${API_URL}/utenti/${id}`, { method: "DELETE" });
+    const data = await res.json();
+
+    if (res.ok) {
+      console.log("✅ Utente eliminato:", userToDelete?.username);
+      
+      // ✅ SE HAI ELIMINATO TE STESSO, FAI LOGOUT IMMEDIATO
+      if (isDeletingSelf) {
+        // Non mostrare alert, fai logout diretto
+        logoutUtente("⚠️ Il tuo account è stato eliminato.");
+        return;
+      }
+      
+      // Altrimenti mostra messaggio di successo e ricarica lista
+      alert(`✅ Utente "${userToDelete?.username}" eliminato con successo!`);
+      loadUtenti();
+    } else {
+      alert(data.error || "Errore durante l'eliminazione");
+    }
+  } catch (error) {
+    console.error("Errore eliminazione utente:", error);
+    alert("❌ Errore di connessione al server");
+  }
+}
+
+
+
+// ==================== SUBMIT FORM UTENTE CON CONTROLLO SESSIONE ====================
+// ⚠️ SOSTITUISCI il listener del form utente esistente con questo
+
+document.getElementById("formUser").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const id = document.getElementById("userId").value;
+  const username = document.getElementById("userUsername").value.trim();
+  const password = document.getElementById("userPassword").value;
+
+  const method = id ? "PUT" : "POST";
+  const url = id ? `${API_URL}/utenti/${id}` : `${API_URL}/utenti`;
+
+  const body = { username };
+  if (password) body.password = password;
+
+  // ✅ VERIFICA SE STAI MODIFICANDO TE STESSO
+  const currentUserId = sessionStorage.getItem("userId");
+  const currentUsername = sessionStorage.getItem("username");
+  const isModifyingSelf = id && currentUserId && parseInt(currentUserId) === parseInt(id);
+
+  // Trova l'utente da modificare per mostrare info dettagliate
+  const userToModify = allUtenti.find((u) => u.id == id);
+
+  // ✅ CONFERMA SE STAI MODIFICANDO LA TUA PASSWORD
+  if (isModifyingSelf && password) {
+    const confirmMsg = `⚠️ ATTENZIONE: Stai modificando la TUA password!\n\n` +
+                       `Utente: ${currentUsername}\n\n` +
+                       `Dopo questa modifica verrai disconnesso e dovrai effettuare nuovamente il login con la nuova password.\n\n` +
+                       `Continuare?`;
+    
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+  }
+
+  // ✅ CONFERMA SE STAI MODIFICANDO IL TUO USERNAME
+  if (isModifyingSelf && username !== currentUsername && !password) {
+    const confirmMsg = `👤 Stai modificando il tuo username:\n\n` +
+                       `Da: ${currentUsername}\n` +
+                       `A: ${username}\n\n` +
+                       `L'username verrà aggiornato automaticamente.\n\n` +
+                       `Continuare?`;
+    
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+  }
+
+  // ✅ CONFERMA SE STAI MODIFICANDO SIA USERNAME CHE PASSWORD
+  if (isModifyingSelf && username !== currentUsername && password) {
+    const confirmMsg = `⚠️ ATTENZIONE: Stai modificando ENTRAMBI username e password!\n\n` +
+                       `Username: ${currentUsername} → ${username}\n` +
+                       `Password: [nuova password]\n\n` +
+                       `Verrai disconnesso e dovrai effettuare il login con le nuove credenziali.\n\n` +
+                       `Continuare?`;
+    
+    if (!confirm(confirmMsg)) {
+      return;
+    }
+  }
+
+  try {
+    const res = await fetch(url, {
+      method,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+
+    const data = await res.json();
+
+    if (res.ok) {
+      const isNewUser = !id;
+      const actionMessage = isNewUser ? "creato" : "aggiornato";
+      
+      console.log(`✅ Utente ${actionMessage}:`, username);
+      
+      closeUserModal();
+      
+      // ✅ GESTISCI MODIFICHE AL PROPRIO ACCOUNT
+      if (isModifyingSelf) {
+        // Caso 1: Password modificata → LOGOUT OBBLIGATORIO
+        if (password) {
+          logoutUtente("🔐 La tua password è stata modificata. Effettua nuovamente il login con la nuova password.");
+          return;
+        }
+        
+        // Caso 2: Solo username modificato → AGGIORNA SESSIONE
+        if (username !== currentUsername) {
+          sessionStorage.setItem("username", username);
+          const currentUserElement = document.getElementById("currentUser");
+          if (currentUserElement) {
+            currentUserElement.textContent = username;
+          }
+          alert(`✅ Il tuo username è stato aggiornato da "${currentUsername}" a "${username}"`);
+        } else {
+          alert(`✅ Le tue informazioni sono state aggiornate!`);
+        }
+      } else {
+        // Modifica di un altro utente
+        const targetUser = userToModify?.username || username;
+        alert(`✅ Utente "${targetUser}" ${actionMessage} con successo!`);
+      }
+      
+      loadUtenti();
+    } else {
+      alert(data.error || "❌ Errore durante il salvataggio");
+    }
+  } catch (error) {
+    console.error("Errore salvataggio utente:", error);
+    alert("❌ Errore di connessione al server");
+  }
+});
