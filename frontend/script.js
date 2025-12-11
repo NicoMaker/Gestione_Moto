@@ -472,7 +472,7 @@ function renderMovimenti() {
       }">${m.tipo.toUpperCase()}</span></td>
 
       <!-- 🎨 Colori dinamici -->
-      <td class="${colorClass}">${m.quantita} pz</td>
+      <td class="${colorClass}">${formatQuantity(m.quantita)} pz</td>
       <td class="${colorClass}">${prezzoUnitarioHtml}</td>
       <td class="${colorClass}"><strong>${prezzoTotaleHtml}</strong></td>
 
@@ -715,7 +715,7 @@ async function showGiacenzaInfo(prodottoId) {
 
       giacenzaValue.textContent = `${prodotto.nome} ${
         prodotto.marca_nome ? `(${prodotto.marca_nome})` : ""
-      } - Giacenza: ${prodotto.giacenza || 0} pz`;
+      } - Giacenza: ${formatQuantity(prodotto.giacenza || 0)} pz`;
       giacenzaInfo.style.display = "block";
     }
   } catch (error) {
@@ -776,7 +776,7 @@ function renderRiepilogo() {
             }</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${r.giacenza} pz</span></td>
+      <td><span class="badge-giacenza">${formatQuantity(r.giacenza)} pz</span></td>
       <td><strong>${formatCurrency(r.valore_totale)}</strong></td>
     </tr>
     `;
@@ -804,7 +804,7 @@ function renderRiepilogo() {
       r.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${lotto.quantita_rimanente} pz</strong></td>
+                  <td><strong>${formatQuantity(lotto.quantita_rimanente)} pz</strong></td>
                   <td>${formatCurrency(lotto.prezzo)}</td>
                   <td><strong>${formatCurrency(
                     lotto.quantita_rimanente * lotto.prezzo
@@ -902,9 +902,9 @@ function printRiepilogo() {
           <div class="prodotto-header">
             <div class="prodotto-info">
               <span><strong>Prodotto:</strong> ${prodotto.nome}</span>
-              <span><strong>Giacenza Totale:</strong> ${
+              <span><strong>Giacenza Totale:</strong> ${formatQuantity(
                 prodotto.giacenza
-              } pz</span>
+              )} pz</span>
             </div>
             <div class="prodotto-info">
               <span><strong>Marca:</strong> ${prodotto.marca_nome || "-"}</span>
@@ -939,7 +939,7 @@ function printRiepilogo() {
         prodotto.lotti.forEach((lotto) => {
           printContent += `
             <tr class="lotto-row">
-              <td>${lotto.quantita_rimanente} pz</td>
+              <td>${formatQuantity(lotto.quantita_rimanente)} pz</td>
               <td>${formatCurrency(lotto.prezzo)}</td>
               <td><strong>${formatCurrency(
                 lotto.quantita_rimanente * lotto.prezzo
@@ -1037,7 +1037,7 @@ function renderStorico(storico) {
             }</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${s.giacenza} pz</span></td>
+      <td><span class="badge-giacenza">${formatQuantity(s.giacenza)} pz</span></td>
       <td><strong>${formatCurrency(s.valore_totale)}</strong></td>
     </tr>
     `;
@@ -1065,7 +1065,7 @@ function renderStorico(storico) {
       s.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${lotto.quantita_rimanente} pz</strong></td>
+                  <td><strong>${formatQuantity(lotto.quantita_rimanente)} pz</strong></td>
                   <td>${formatCurrency(lotto.prezzo)}</td>
                   <td><strong>${formatCurrency(
                     lotto.quantita_rimanente * lotto.prezzo
@@ -1171,9 +1171,9 @@ function printStorico() {
           <div class="prodotto-header">
             <div class="prodotto-info">
               <span><strong>Prodotto:</strong> ${prodotto.nome}</span>
-              <span><strong>Giacenza Totale:</strong> ${
+              <span><strong>Giacenza Totale:</strong> ${formatQuantity(
                 prodotto.giacenza
-              } pz</span>
+              )} pz</span>
             </div>
             <div class="prodotto-info">
               <span><strong>Marca:</strong> ${prodotto.marca_nome || "-"}</span>
@@ -1208,7 +1208,7 @@ function printStorico() {
         prodotto.lotti.forEach((lotto) => {
           printContent += `
             <tr class="lotto-row">
-              <td>${lotto.quantita_rimanente} pz</td>
+              <td>${formatQuantity(lotto.quantita_rimanente)} pz</td>
               <td>${formatCurrency(lotto.prezzo)}</td>
               <td><strong>${formatCurrency(
                 lotto.quantita_rimanente * lotto.prezzo
@@ -1569,7 +1569,7 @@ function renderMovimenti() {
         m.tipo === "carico" ? "badge-success" : "badge-danger"
       }">${m.tipo.toUpperCase()}</span></td>
 
-      <td class="${colorClass}">${m.quantita} pz</td>
+      <td class="${colorClass}">${formatQuantity(m.quantita)} pz</td>
       <td class="${colorClass}">${prezzoUnitarioHtml}</td>
       <td class="${colorClass}"><strong>${prezzoTotaleHtml}</strong></td>
 
@@ -1924,9 +1924,9 @@ function renderProductSearchResults(filtered, searchTerm) {
         ? `<span class="search-result-marca">${p.marca_nome.toUpperCase()}</span>`
         : "";
 
-      const giacenzaBadge = `<span class="search-result-giacenza">${
+      const giacenzaBadge = `<span class="search-result-giacenza">${formatQuantity(
         p.giacenza || 0
-      } pz</span>`;
+      )} pz</span>`;
 
       return `
       <div class="search-result-item" data-id="${p.id}" data-nome="${
@@ -2102,7 +2102,7 @@ function searchProducts() {
           <div class="search-result-title">${nomeHighlighted}</div>
           <div class="search-result-meta">
             <span class="search-result-marca">${marcaHighlighted}</span>
-            <span class="search-result-giacenza">Giacenza: ${p.giacenza}</span>
+            <span class="search-result-giacenza">Giacenza: ${formatQuantity(p.giacenza)} pz</span>
           </div>
         </div>
         <div class="search-result-body">
@@ -2241,7 +2241,7 @@ function searchProducts() {
           <div class="search-result-title">${nomeHighlighted}</div>
           <div class="search-result-meta">
             <span class="search-result-marca">${marcaHighlighted}</span>
-            <span class="search-result-giacenza">Giacenza: ${p.giacenza}</span>
+            <span class="search-result-giacenza">Giacenza: ${formatQuantity(p.giacenza)} pz</span>
           </div>
         </div>
         <div class="search-result-body">
@@ -2335,7 +2335,7 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${p.giacenza || 0} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2425,7 +2425,7 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${p.giacenza || 0} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2533,7 +2533,7 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${p.giacenza || 0} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2649,7 +2649,7 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${p.giacenza || 0} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
