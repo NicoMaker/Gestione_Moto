@@ -63,7 +63,7 @@ Questa sezione permette di registrare le entrate e le uscite dei prodotti.
 - **Eliminazione Movimenti:** È possibile **eliminare un movimento** (carico o scarico).
   - **Importante:** L'eliminazione di un **Carico** rimuove il lotto e riduce la giacenza. L'eliminazione di uno **Scarico** ripristina la quantità prelevata nei lotti originali (annullando l'operazione).
 
-### 4. Magazzino - Riepilogo (Giacenze e Valore)
+### 4. Magazzino - Riepilogo (Giacenze e Valore) sezione Riepilogo
 
 Questa è la sezione principale per il controllo delle scorte.
 
@@ -80,7 +80,7 @@ Questa è la sezione principale per il controllo delle scorte.
 
 - il bottone stampa vede quello che vedi nella tabella, con una stampa a schermo del riepilogo.
 
-### 5. Magazzino - Riepilogo (Giacenze e Valore)
+### 5. Magazzino - Riepilogo (Giacenze e Valore) sezione Storico
 
 Questa è la sezione principale per il controllo delle scorte a una data specifica.
 
@@ -111,6 +111,7 @@ Gestione degli account utente (accessibile agli utenti con privilegi amministrat
   - Modifica l'username o la password di un utente esistente con l'icona della penna.
   - _Quando si modifica un utente, la password è opzionale: se lasciata vuota, non verrà cambiata._
 - **Eliminazione:**
+
   - È possibile eliminare un utente **solo se non è l'unico utente rimasto** nel sistema (per evitare di perdere l'accesso).
 
   - se modifici o elimini nome utente con il quale sono entrato esce in automatico.
