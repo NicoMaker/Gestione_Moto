@@ -1,17 +1,15 @@
-// routes/magazzino.js - VERSIONE DEFINITIVA E ROBUSTA
+// routes/magazzino.js - VERSIONE CORRETTA CON STORICO PER DATA OPERAZIONE
 
 const express = require("express");
 const router = express.Router();
 const { db } = require("../db/init");
 
-// 🎯 FUNZIONE HELPER PER FORMATTARE I DECIMALI A 2 CIFRE
-// Utilizza Math.round per l'arrotondamento a 2 cifre, prevenendo errori di floating point.
+// FUNZIONE HELPER PER FORMATTARE I DECIMALI A 2 CIFRE
 function formatDecimal(value) {
   if (value === null || value === undefined) return 0;
   const num = parseFloat(value);
   if (isNaN(num)) return 0;
-  // Metodo robusto per l'arrotondamento a 2 decimali (gestisce 1.235 -> 1.24)
-  return parseFloat(Math.round(num * 100) / 100);
+  return parseFloat(num.toFixed(2));
 }
 
 // GET - Valore totale del magazzino (FIFO)
@@ -21,17 +19,16 @@ router.get("/valore-magazzino", (req, res) => {
     FROM lotti
     WHERE quantita_rimanente > 0
   `;
-
   db.get(query, (err, row) => {
     if (err) return res.status(500).json({ error: err.message });
     res.json({ valore_totale: formatDecimal(row.valore_totale) });
   });
 });
 
-// GET - Riepilogo per prodotto con marca e descrizione (Stato Attuale)
+// GET - Riepilogo per prodotto con marca e descrizione
 router.get("/riepilogo", (req, res) => {
   const query = `
-    SELECT 
+    SELECT
       p.id,
       p.nome,
       m.nome as marca_nome,
@@ -45,12 +42,11 @@ router.get("/riepilogo", (req, res) => {
     HAVING giacenza >= 0
     ORDER BY p.nome
   `;
-
   db.all(query, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
 
     const queryLotti = `
-      SELECT 
+      SELECT
         l.prodotto_id,
         l.id,
         l.quantita_rimanente,
@@ -71,7 +67,7 @@ router.get("/riepilogo", (req, res) => {
         if (!lottiPerProdotto[lotto.prodotto_id]) {
           lottiPerProdotto[lotto.prodotto_id] = [];
         }
-        // FORMATTA DECIMALI NEI LOTTI PRIMA DI AGGIUNGERLI
+        // FORMATTA DECIMALI NEI LOTTI
         lottiPerProdotto[lotto.prodotto_id].push({
           ...lotto,
           quantita_rimanente: formatDecimal(lotto.quantita_rimanente),
@@ -79,30 +75,16 @@ router.get("/riepilogo", (req, res) => {
         });
       });
 
-      // FORMATTA DECIMALI NEL RIEPILOGO e calcola Prezzo Medio Ponderato
-      const riepilogo = rows.map((row) => {
-        // *** CORREZIONE: Formatta i totali subito dopo averli recuperati da SQL ***
-        const giacenza = formatDecimal(row.giacenza);
-        const valore_totale = formatDecimal(row.valore_totale);
+      // FORMATTA DECIMALI NEL RIEPILOGO
+      const riepilogo = rows.map((row) => ({
+        ...row,
+        giacenza: formatDecimal(row.giacenza),
+        valore_totale: formatDecimal(row.valore_totale),
+        lotti: lottiPerProdotto[row.id] || [],
+      }));
 
-        let prezzo_medio = 0;
-        if (giacenza > 0) {
-          // Calcolo Prezzo Medio Ponderato Corrente, formattando anche il risultato
-          prezzo_medio = formatDecimal(valore_totale / giacenza);
-        }
-
-        return {
-          ...row,
-          giacenza: giacenza,
-          valore_totale: valore_totale,
-          prezzo_medio: prezzo_medio,
-          lotti: lottiPerProdotto[row.id] || [],
-        };
-      });
-
-      // Calcola il Valore Totale Globale
       const valoreTotale = riepilogo.reduce(
-        (sum, r) => formatDecimal(sum + r.valore_totale),
+        (sum, r) => sum + formatDecimal(r.valore_totale),
         0
       );
 
@@ -117,7 +99,6 @@ router.get("/riepilogo", (req, res) => {
 // GET - Dettaglio Lotti per Prodotto
 router.get("/riepilogo/:prodottoId", (req, res) => {
   const { prodottoId } = req.params;
-
   const query = `
     SELECT
       id,
@@ -130,17 +111,13 @@ router.get("/riepilogo/:prodottoId", (req, res) => {
     WHERE prodotto_id = ? AND quantita_rimanente > 0
     ORDER BY data_carico ASC, id ASC
   `;
-
   db.all(query, [prodottoId], (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
-
-    // FORMATTA DECIMALI
     const formattedRows = rows.map((row) => ({
       ...row,
       quantita_rimanente: formatDecimal(row.quantita_rimanente),
       prezzo: formatDecimal(row.prezzo),
     }));
-
     res.json(formattedRows);
   });
 });
@@ -149,6 +126,7 @@ router.get("/riepilogo/:prodottoId", (req, res) => {
 router.get("/storico-giacenza/:date", (req, res) => {
   const historicalDate = req.params.date;
 
+  // Validazione formato data
   if (!/^\d{4}-\d{2}-\d{2}$/.test(historicalDate)) {
     return res
       .status(400)
@@ -156,48 +134,53 @@ router.get("/storico-giacenza/:date", (req, res) => {
   }
 
   db.all(
-    `SELECT p.id, p.nome, m.nome as marca_nome, p.descrizione 
-     FROM prodotti p 
-     LEFT JOIN marche m ON p.marca_id = m.id 
-     ORDER BY p.nome`,
+    `
+      SELECT p.id, p.nome, m.nome as marca_nome, p.descrizione
+      FROM prodotti p
+      LEFT JOIN marche m ON p.marca_id = m.id
+      ORDER BY p.nome
+    `,
     (err, prodotti) => {
-      if (err)
+      if (err) {
         return res.status(500).json({ error: "Errore nel recupero prodotti" });
+      }
 
       const results = [];
       let totalValue = 0;
       let productsProcessed = 0;
 
-      if (prodotti.length === 0)
+      if (prodotti.length === 0) {
         return res.json({ riepilogo: [], valore_totale: formatDecimal(0) });
+      }
 
       prodotti.forEach((prodotto) => {
-        // Query che recupera carichi (lotti) e scarichi (dati) fino alla data specificata
+        // Storico basato sulla DATA OPERAZIONE (data_carico / data_movimento)
         const query = `
-          SELECT 
+          SELECT
             'lotto' as tipo_movimento,
             id,
             quantita_iniziale as quantita,
             prezzo,
             data_carico,
             fattura_doc,
-            fornitore,
-            data_registrazione
-          FROM lotti 
-          WHERE prodotto_id = ? AND DATE(data_carico) <= ?
+            fornitore
+          FROM lotti
+          WHERE prodotto_id = ? AND data_carico <= ?
+
           UNION ALL
-          SELECT 
+
+          SELECT
             'scarico' as tipo_movimento,
             id,
             quantita,
             NULL as prezzo,
             data_movimento as data_carico,
             NULL as fattura_doc,
-            NULL as fornitore,
-            data_registrazione
-          FROM dati 
-          WHERE prodotto_id = ? AND tipo = 'scarico' AND DATE(data_movimento) <= ?
-          ORDER BY data_registrazione ASC, id ASC
+            NULL as fornitore
+          FROM dati
+          WHERE prodotto_id = ? AND tipo = 'scarico' AND data_movimento <= ?
+
+          ORDER BY data_carico ASC, id ASC
         `;
 
         db.all(
@@ -224,7 +207,7 @@ router.get("/storico-giacenza/:date", (req, res) => {
 
             movimenti.forEach((mov) => {
               if (mov.tipo_movimento === "lotto") {
-                // Carico: Aggiunge un lotto iniziale
+                // Nuovo lotto caricato
                 lottiAttivi.push({
                   id: mov.id,
                   qty_iniziale: formatDecimal(mov.quantita),
@@ -235,53 +218,35 @@ router.get("/storico-giacenza/:date", (req, res) => {
                   fornitore: mov.fornitore,
                 });
               } else if (mov.tipo_movimento === "scarico") {
-                // Scarico: Applica FIFO ai lotti attivi
+                // Scarico FIFO sui lotti attivi
                 let qtaDaScaricare = formatDecimal(mov.quantita);
-
-                // Itera sui lotti in ordine FIFO
                 for (let i = 0; i < lottiAttivi.length; i++) {
-                  if (qtaDaScaricare <= 0.001) break;
-
+                  if (qtaDaScaricare <= 0) break;
                   const lotto = lottiAttivi[i];
-                  if (lotto.qty_rimanente <= 0.001) continue;
+                  if (lotto.qty_rimanente <= 0) continue;
 
                   const qtaPrelevata = Math.min(
                     qtaDaScaricare,
                     lotto.qty_rimanente
                   );
-
-                  // ** ARITMETICA SU INTERI PER PRECISIONE FLOAT **
-                  const rimanente_int = Math.round(lotto.qty_rimanente * 100);
-                  const prelevata_int = Math.round(qtaPrelevata * 100);
-
-                  const nuova_qty_int = rimanente_int - prelevata_int;
-
-                  lotto.qty_rimanente = formatDecimal(nuova_qty_int / 100);
-
+                  lotto.qty_rimanente = formatDecimal(
+                    lotto.qty_rimanente - qtaPrelevata
+                  );
                   qtaDaScaricare = formatDecimal(qtaDaScaricare - qtaPrelevata);
                 }
               }
             });
 
             const lottiRimanenti = lottiAttivi.filter(
-              (l) => l.qty_rimanente > 0.001
+              (l) => l.qty_rimanente > 0
             );
 
             lottiRimanenti.forEach((l) => {
-              // I calcoli di giacenza e valore sono formattati per prevenire discrepanze
               totaleGiacenza = formatDecimal(totaleGiacenza + l.qty_rimanente);
               totaleValore = formatDecimal(
-                totaleValore + formatDecimal(l.qty_rimanente * l.prezzo)
+                totaleValore + l.qty_rimanente * l.prezzo
               );
             });
-
-            // Calcolo Prezzo Medio Ponderato per lo storico
-            let prezzo_medio_storico = 0;
-            if (totaleGiacenza > 0) {
-              prezzo_medio_storico = formatDecimal(
-                totaleValore / totaleGiacenza
-              );
-            }
 
             totalValue = formatDecimal(totalValue + totaleValore);
 
@@ -292,7 +257,6 @@ router.get("/storico-giacenza/:date", (req, res) => {
               descrizione: prodotto.descrizione,
               giacenza: formatDecimal(totaleGiacenza),
               valore_totale: formatDecimal(totaleValore),
-              prezzo_medio: prezzo_medio_storico,
               lotti: lottiRimanenti.map((l) => ({
                 id: l.id,
                 quantita_rimanente: formatDecimal(l.qty_rimanente),
