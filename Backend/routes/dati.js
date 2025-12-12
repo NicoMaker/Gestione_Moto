@@ -1,4 +1,4 @@
-// routes/dati.js - VERSIONE COMPLETA CON FORMATTAZIONE DECIMALI
+// routes/dati.js - CON VINCOLI TEMPORALI SUI LOTTI
 
 const express = require("express");
 const router = express.Router();
@@ -9,7 +9,7 @@ function formatDecimal(value) {
   if (value === null || value === undefined) return null;
   const num = parseFloat(value);
   if (isNaN(num)) return null;
-  return parseFloat(num.toFixed(2)); // Forza 2 decimali
+  return parseFloat(num.toFixed(2));
 }
 
 // GET - Lista tutti i movimenti con marca e descrizione
@@ -42,7 +42,6 @@ router.get("/", (req, res) => {
   db.all(query, (err, rows) => {
     if (err) return res.status(500).json({ error: err.message });
 
-    // 🎯 FORMATTA TUTTI I DECIMALI A 2 CIFRE
     const formattedRows = rows.map((row) => ({
       ...row,
       quantita: formatDecimal(row.quantita),
@@ -79,7 +78,6 @@ router.post("/", (req, res) => {
       .json({ error: "Formato data non valido (YYYY-MM-DD)" });
   }
 
-  // 🎯 PARSING DECIMALE CON VIRGOLA E PUNTO + FORMATTAZIONE A 2 DECIMALI
   const qtaString = String(quantita).replace(",", ".");
   const qty = formatDecimal(qtaString);
 
@@ -152,13 +150,27 @@ router.post("/", (req, res) => {
       );
     });
   } else {
-    // SCARICO
+    // 🚨 SCARICO - CON CONTROLLO TEMPORALE
+
+    // 🔍 Step 1: Recupera tutti i lotti disponibili FINO alla data_movimento
     db.all(
-      "SELECT id, quantita_rimanente, prezzo FROM lotti WHERE prodotto_id = ? AND quantita_rimanente > 0 ORDER BY data_registrazione ASC",
-      [prodotto_id],
+      `SELECT id, quantita_rimanente, prezzo, data_carico 
+       FROM lotti 
+       WHERE prodotto_id = ? 
+       AND quantita_rimanente > 0 
+       AND data_carico <= ?
+       ORDER BY data_carico ASC, data_registrazione ASC`,
+      [prodotto_id, data_movimento],
       (err, lotti) => {
         if (err) return res.status(500).json({ error: err.message });
 
+        if (lotti.length === 0) {
+          return res.status(400).json({
+            error: `Nessun carico disponibile alla data ${data_movimento}. Verifica di aver caricato il prodotto prima o nella stessa data dello scarico.`,
+          });
+        }
+
+        // 📊 Calcola giacenza disponibile alla data richiesta
         const giacenzaTotale = lotti.reduce(
           (sum, l) => sum + formatDecimal(l.quantita_rimanente),
           0
@@ -166,12 +178,13 @@ router.post("/", (req, res) => {
 
         if (giacenzaTotale < qty) {
           return res.status(400).json({
-            error: `Giacenza insufficiente (disponibili: ${formatDecimal(
+            error: `Giacenza insufficiente alla data ${data_movimento}. Disponibili: ${formatDecimal(
               giacenzaTotale
-            )})`,
+            )} - Richiesti: ${qty}`,
           });
         }
 
+        // ✅ Procedi con lo scarico FIFO
         let daScaricare = qty;
         let costoTotaleScarico = 0;
         const updates = [];
