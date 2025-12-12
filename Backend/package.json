@@ -1,8 +1,8 @@
 {
-  "name": "gestione-magazzino-moto",
+  "name": "gestione-magazzino",
   "version": "2.0.0",
-  "description": "Sistema di gestione magazzino moto con autenticazione",
-  "main": "backend/server.js",
+  "description": "Sistema di gestione magazzino con autenticazione",
+  "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "dev": "nodemon server.js",
@@ -17,7 +17,7 @@
     "bcrypt",
     "auth"
   ],
-  "author": "<nNico Maker",
+  "author": "Nico Maker",
   "license": "ISC",
   "dependencies": {
     "bcrypt": "^5.1.1",
