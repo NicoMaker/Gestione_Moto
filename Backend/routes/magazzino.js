@@ -269,6 +269,9 @@ router.get("/storico-giacenza/:date", (req, res) => {
 
             productsProcessed++;
             if (productsProcessed === prodotti.length) {
+              // 🎯 ORDINA I RISULTATI ALFABETICAMENTE PRIMA DI INVIARLI
+              results.sort((a, b) => a.nome.localeCompare(b.nome));
+
               res.json({
                 riepilogo: results,
                 valore_totale: formatDecimal(totalValue),
