@@ -738,7 +738,9 @@ function renderRiepilogo() {
             }</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${formatQuantity(r.giacenza)} pz</span></td>
+      <td><span class="badge-giacenza">${formatQuantity(
+        r.giacenza
+      )} pz</span></td>
       <td><strong>${formatCurrency(r.valore_totale)}</strong></td>
     </tr>
     `;
@@ -766,7 +768,9 @@ function renderRiepilogo() {
       r.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${formatQuantity(lotto.quantita_rimanente)} pz</strong></td>
+                  <td><strong>${formatQuantity(
+                    lotto.quantita_rimanente
+                  )} pz</strong></td>
                   <td>${formatCurrency(lotto.prezzo)}</td>
                   <td><strong>${formatCurrency(
                     lotto.quantita_rimanente * lotto.prezzo
@@ -998,7 +1002,9 @@ function renderStorico(storico) {
             }</small>`
           : '<span style="color: #999;">-</span>'
       }</td>
-      <td><span class="badge-giacenza">${formatQuantity(s.giacenza)} pz</span></td>
+      <td><span class="badge-giacenza">${formatQuantity(
+        s.giacenza
+      )} pz</span></td>
       <td><strong>${formatCurrency(s.valore_totale)}</strong></td>
     </tr>
     `;
@@ -1026,7 +1032,9 @@ function renderStorico(storico) {
       s.lotti.forEach((lotto) => {
         html += `
                 <tr>
-                  <td><strong>${formatQuantity(lotto.quantita_rimanente)} pz</strong></td>
+                  <td><strong>${formatQuantity(
+                    lotto.quantita_rimanente
+                  )} pz</strong></td>
                   <td>${formatCurrency(lotto.prezzo)}</td>
                   <td><strong>${formatCurrency(
                     lotto.quantita_rimanente * lotto.prezzo
@@ -2062,7 +2070,9 @@ function searchProducts() {
           <div class="search-result-title">${nomeHighlighted}</div>
           <div class="search-result-meta">
             <span class="search-result-marca">${marcaHighlighted}</span>
-            <span class="search-result-giacenza">Giacenza: ${formatQuantity(p.giacenza)} pz</span>
+            <span class="search-result-giacenza">Giacenza: ${formatQuantity(
+              p.giacenza
+            )} pz</span>
           </div>
         </div>
         <div class="search-result-body">
@@ -2201,7 +2211,9 @@ function searchProducts() {
           <div class="search-result-title">${nomeHighlighted}</div>
           <div class="search-result-meta">
             <span class="search-result-marca">${marcaHighlighted}</span>
-            <span class="search-result-giacenza">Giacenza: ${formatQuantity(p.giacenza)} pz</span>
+            <span class="search-result-giacenza">Giacenza: ${formatQuantity(
+              p.giacenza
+            )} pz</span>
           </div>
         </div>
         <div class="search-result-body">
@@ -2295,7 +2307,9 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(
+            p.giacenza || 0
+          )} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2385,7 +2399,9 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(
+            p.giacenza || 0
+          )} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2493,7 +2509,9 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(
+            p.giacenza || 0
+          )} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -2609,7 +2627,9 @@ function searchProducts() {
               ? `<span class="search-result-marca">${marcaHighlighted}</span>`
               : ""
           }
-          <span class="search-result-giacenza">${formatQuantity(p.giacenza || 0)} pz</span>
+          <span class="search-result-giacenza">${formatQuantity(
+            p.giacenza || 0
+          )} pz</span>
           ${
             p.descrizione
               ? `<span style="opacity: 0.7;">• ${p.descrizione.substring(
@@ -3696,48 +3716,52 @@ const handleKeydown = function (e) {
 function setupDateValidation() {
   const dateInput = document.getElementById("movimentoData");
   const storicoDateInput = document.getElementById("storicoDate");
-  
+
   if (dateInput) {
     // Imposta max date come oggi
-    const today = new Date().toISOString().split('T')[0];
-    dateInput.setAttribute('max', today);
-    
+    const today = new Date().toISOString().split("T")[0];
+    dateInput.setAttribute("max", today);
+
     // Validazione aggiuntiva on change
-    dateInput.addEventListener('change', function() {
+    dateInput.addEventListener("change", function () {
       const selectedDate = new Date(this.value);
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
-      
+
       if (selectedDate > todayDate) {
-        alert('⚠️ Non puoi selezionare una data futura! Seleziona oggi o una data passata.');
+        alert(
+          "⚠️ Non puoi selezionare una data futura! Seleziona oggi o una data passata."
+        );
         this.value = today;
       }
     });
-    
+
     // Validazione anche on input (per digitazione manuale)
-    dateInput.addEventListener('input', function() {
+    dateInput.addEventListener("input", function () {
       const selectedDate = new Date(this.value);
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
-      
+
       if (selectedDate > todayDate) {
         this.value = today;
       }
     });
   }
-  
+
   if (storicoDateInput) {
     // Imposta max date come oggi per storico
-    const today = new Date().toISOString().split('T')[0];
-    storicoDateInput.setAttribute('max', today);
-    
-    storicoDateInput.addEventListener('change', function() {
+    const today = new Date().toISOString().split("T")[0];
+    storicoDateInput.setAttribute("max", today);
+
+    storicoDateInput.addEventListener("change", function () {
       const selectedDate = new Date(this.value);
       const todayDate = new Date();
       todayDate.setHours(0, 0, 0, 0);
-      
+
       if (selectedDate > todayDate) {
-        alert('⚠️ Non puoi selezionare una data futura! Seleziona oggi o una data passata.');
+        alert(
+          "⚠️ Non puoi selezionare una data futura! Seleziona oggi o una data passata."
+        );
         this.value = today;
       }
     });
@@ -3788,7 +3812,9 @@ async function openMovimentoModal(movimento = null) {
 
   // ⭐ IMPORTANTE: Applica setup decimali e validazione date dopo breve timeout
   setTimeout(() => {
-    console.log("⏱️ Timeout scaduto, applico setup decimali e validazione date...");
+    console.log(
+      "⏱️ Timeout scaduto, applico setup decimali e validazione date..."
+    );
     setupDecimalInputs();
     setupProductSearch();
     setupDateValidation();
