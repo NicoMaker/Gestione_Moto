@@ -140,6 +140,23 @@ function randomDate(daysBack) {
   return date.toISOString().split("T")[0];
 }
 
+/**
+ * Genera una data casuale tra una data di inizio e oggi.
+ * @param {string} startDateString - La data di inizio in formato 'YYYY-MM-DD'.
+ * @returns {string} Una data in formato 'YYYY-MM-DD'.
+ */
+function randomDateFrom(startDateString) {
+  const startDate = new Date(startDateString);
+  const today = new Date();
+
+  // Imposta l'orario a mezzanotte per evitare problemi di fuso orario
+  startDate.setUTCHours(0, 0, 0, 0);
+  today.setUTCHours(0, 0, 0, 0);
+
+  const diffTime = Math.abs(today - startDate);
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return randomDate(diffDays);
+}
 // Genera nome utente univoco
 function generateUsername(index, baseNames) {
   if (index < baseNames.length) {
@@ -462,17 +479,21 @@ async function seedDatabase() {
       const quantitaMaxFloat = parseFloat(quantitaMaxString);
       const quantitaFloat = Math.min(quantitaMaxFloat, disponibilita.totale);
       const quantitaString = quantitaFloat.toFixed(2);
-
-      const dataMovimento = randomDate(Math.floor(giorniStorico / 2));
-      const dataRegistrazione = new Date().toISOString();
-
+      
       // Prendi prezzo FIFO
       const lotto = await getQuery(
-        `SELECT prezzo FROM lotti 
+        `SELECT prezzo, data_carico FROM lotti 
           WHERE prodotto_id = ? AND quantita_rimanente > 0 
           ORDER BY data_carico ASC LIMIT 1`,
         [prodottoId]
       );
+
+      if (!lotto) { // Ulteriore controllo di sicurezza
+        scarichiSaltati++;
+        continue;
+      }
+      const dataMovimento = randomDateFrom(lotto.data_carico);
+      const dataRegistrazione = new Date().toISOString();
 
       const prezzoString = lotto ? lotto.prezzo : "0.00";
       const prezzoFloat = parseFloat(prezzoString);
@@ -481,7 +502,7 @@ async function seedDatabase() {
       const prezzoTotale = (quantitaFloat * prezzoFloat).toFixed(2);
 
       // Per gli scarichi, fattura_doc e fornitore_cliente_id sono NULL
-      await runQuery(
+      const result = await runQuery(
         `INSERT INTO dati (prodotto_id, tipo, quantita, prezzo, prezzo_totale_movimento, 
           data_movimento, data_registrazione, fattura_doc, fornitore_cliente_id) 
           VALUES (?, 'scarico', ?, ?, ?, ?, ?, NULL, NULL)`,
@@ -495,33 +516,45 @@ async function seedDatabase() {
         ]
       );
 
+      const movimentoScaricoId = result.lastID;
+
       // Aggiorna lotti FIFO
       let quantitaDaScaricare = quantitaFloat;
-      while (quantitaDaScaricare > 0.001) { // Tolleranza per errori di arrotondamento
-        const lottoFifo = await getQuery(
-          `SELECT id, quantita_rimanente FROM lotti 
-            WHERE prodotto_id = ? AND quantita_rimanente > 0 
-            ORDER BY data_carico ASC LIMIT 1`,
-          [prodottoId]
-        );
+      await new Promise((resolve, reject) => {
+        db.serialize(async () => {
+          try {
+            db.run("BEGIN TRANSACTION");
+            while (quantitaDaScaricare > 0.001) { // Tolleranza per errori di arrotondamento
+              const lottoFifo = await getQuery(
+                `SELECT id, quantita_rimanente FROM lotti 
+                  WHERE prodotto_id = ? AND quantita_rimanente > 0 
+                  ORDER BY data_carico ASC LIMIT 1`,
+                [prodottoId]
+              );
 
-        if (!lottoFifo) break;
+              if (!lottoFifo) break;
 
-        const quantitaDaPrelevare = Math.min(
-          quantitaDaScaricare,
-          parseFloat(lottoFifo.quantita_rimanente)
-        );
-        const nuovaQuantita = (
-          parseFloat(lottoFifo.quantita_rimanente) - quantitaDaPrelevare
-        ).toFixed(2);
+              const quantitaDaPrelevare = Math.min(
+                quantitaDaScaricare,
+                parseFloat(lottoFifo.quantita_rimanente)
+              );
+              const nuovaQuantita = (
+                parseFloat(lottoFifo.quantita_rimanente) - quantitaDaPrelevare
+              ).toFixed(2);
 
-        await runQuery("UPDATE lotti SET quantita_rimanente = ? WHERE id = ?", [
-          nuovaQuantita,
-          lottoFifo.id,
-        ]);
+              await runQuery("UPDATE lotti SET quantita_rimanente = ? WHERE id = ?", [
+                nuovaQuantita,
+                lottoFifo.id,
+              ]);
 
-        quantitaDaScaricare -= quantitaDaPrelevare;
-      }
+              quantitaDaScaricare -= quantitaDaPrelevare;
+            }
+            db.run("COMMIT", resolve);
+          } catch (e) {
+            db.run("ROLLBACK", () => reject(e));
+          }
+        });
+      });
 
       scarichiCreati++;
       if (scarichiCreati % 50 === 0) {
