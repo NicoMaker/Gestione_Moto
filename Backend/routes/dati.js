@@ -36,7 +36,7 @@ router.get("/", (req, res) => {
     FROM dati d
     JOIN prodotti p ON d.prodotto_id = p.id
     LEFT JOIN marche m ON p.marca_id = m.id
-    ORDER BY d.data_registrazione DESC, d.id DESC
+    ORDER BY d.data_movimento DESC, d.data_registrazione DESC, d.id DESC  -- ✅ ORDINAMENTO CORRETTO
   `;
 
   db.all(query, (err, rows) => {
